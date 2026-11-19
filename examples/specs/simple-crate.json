@@ -1,0 +1,18 @@
+{
+  "name": "SimpleCrate",
+  "materials": {
+    "wood": { "baseColor": "#A8743F", "roughness": 0.8, "metallic": 0.0 }
+  },
+  "parts": [
+    {
+      "name": "Crate",
+      "primitive": "cube",
+      "params": { "size": 1.0 },
+      "material": "wood",
+      "shading": "flat",
+      "modifiers": [ { "type": "bevel", "width": 0.04, "segments": 2 } ]
+    }
+  ],
+  "join": false,
+  "origin": "bottom_center"
+}

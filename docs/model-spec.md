@@ -61,7 +61,7 @@ Primitive notes: cube "size" is the edge length (scale it for boxes). cylinder/c
 4. Stop when renders match well enough or the version limit is reached; then export_3d_asset { formats: ["glb"] }.
 
 Primitive modelling produces stylised, blocky-to-soft shapes. It will not reproduce detailed sculpted
-characters; for those, consider generate_3d_from_image (external provider) and clean up in Blender.
+characters. Lean into a stylised look: chunky silhouettes, bold colours, smooth primitives.
 
 ## Example (tiny)
 

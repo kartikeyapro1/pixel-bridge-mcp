@@ -43,11 +43,13 @@ export interface SubmitJobRequest {
   collection: string;
   category?: Category;
   prompt?: string;
-  image?: string;
+  /** Asset ids or project paths: reference / start-frame images (video) or the source image (3D). */
+  images?: string[];
   durationSeconds?: number;
   provider?: string;
   model?: string;
-  extraInput?: Record<string, unknown>;
+  resolution?: string;
+  aspectRatio?: string;
   bypassCache?: boolean;
   dryRun?: boolean;
   confirmCostUsd?: number;
@@ -66,14 +68,15 @@ export class JobService {
       throw new PixelBridgeError('INVALID_INPUT', 'Video generation needs a prompt.');
     const provider = this.ctx.jobProvider(r.kind, r.provider, r.model);
     const model = r.model ?? this.ctx.defaultJobModel(r.kind, provider);
-    const image = r.image ? resolveImage(r.image, this.ctx.registry, this.ctx.paths) : undefined;
+    const images = (r.images ?? []).map((ref) => resolveImage(ref, this.ctx.registry, this.ctx.paths));
     const params = {
       kind: r.kind,
       model,
       ...(r.prompt !== undefined ? { prompt: r.prompt } : {}),
-      ...(image ? { image } : {}),
+      ...(images.length ? { images } : {}),
       ...(r.durationSeconds !== undefined ? { durationSeconds: r.durationSeconds } : {}),
-      ...(r.extraInput ? { extraInput: r.extraInput } : {}),
+      ...(r.resolution ? { resolution: r.resolution } : {}),
+      ...(r.aspectRatio ? { aspectRatio: r.aspectRatio } : {}),
     };
     provider.validate(params);
     const estimate = provider.estimate(params);
@@ -81,8 +84,13 @@ export class JobService {
       provider: provider.id,
       model,
       operation: `${r.kind}.generate`,
-      params: { prompt: r.prompt, durationSeconds: r.durationSeconds, extraInput: r.extraInput },
-      referenceHashes: image ? [image.sha256] : [],
+      params: {
+        prompt: r.prompt,
+        durationSeconds: r.durationSeconds,
+        resolution: r.resolution,
+        aspectRatio: r.aspectRatio,
+      },
+      referenceHashes: images.map((i) => i.sha256),
     });
 
     if (!r.bypassCache) {
@@ -132,8 +140,13 @@ export class JobService {
         r.category ?? (r.kind === 'video' ? 'videos' : 'characters'),
         r.collection,
         r.prompt ?? null,
-        JSON.stringify({ durationSeconds: r.durationSeconds, extraInput: r.extraInput, fingerprint }),
-        JSON.stringify(image?.assetId ? [image.assetId] : []),
+        JSON.stringify({
+          durationSeconds: r.durationSeconds,
+          resolution: r.resolution,
+          aspectRatio: r.aspectRatio,
+          fingerprint,
+        }),
+        JSON.stringify(images.map((i) => i.assetId).filter((x): x is string => !!x)),
         JSON.stringify(submitted.state),
         reservation.id,
         estimate.estimatedUsd,
@@ -211,7 +224,7 @@ export class JobService {
       const category = job.category as Category;
       const assets: AssetRecord[] = [];
       for (const [i, f] of files.entries()) {
-        const data = await provider.download(f.url, this.ctx.config.providers.fal.maxDownloadBytes);
+        const data = await provider.download(f.url, this.ctx.config.maxDownloadBytes);
         const isPrimary =
           job.kind === 'video'
             ? ['mp4', 'webm', 'mov'].includes(f.ext)

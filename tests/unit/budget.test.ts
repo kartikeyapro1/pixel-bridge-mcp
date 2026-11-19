@@ -52,9 +52,9 @@ describe('BudgetLedger', () => {
   });
 
   it('enforces per-provider limits', () => {
-    const b = ledger({ projectLimitUsd: 10, providerLimitsUsd: { fal: 0.5 } });
-    b.settle(b.reserve(est(0.4, 'fal')).id);
-    expect(() => b.reserve(est(0.2, 'fal'))).toThrow(/Provider "fal"/);
+    const b = ledger({ projectLimitUsd: 10, providerLimitsUsd: { gemini: 0.5 } });
+    b.settle(b.reserve(est(0.4, 'gemini')).id);
+    expect(() => b.reserve(est(0.2, 'gemini'))).toThrow(/Provider "gemini"/);
     expect(() => b.reserve(est(0.2, 'openai'))).not.toThrow();
   });
 

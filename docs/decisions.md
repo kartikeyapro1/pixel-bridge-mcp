@@ -67,18 +67,28 @@ above `maxCostPerCallUsd` are refused outright. Unknown prices are refused, not 
 
 **Why.** Over-counting is recoverable (raise the limit); under-counting is not.
 
-## ADR-7: OpenAI for images, fal.ai queue for video and image-to-3D
+## ADR-7: One API key: Gemini API for images and video
 
-**Decision.** Images: OpenAI Images API (default `gpt-image-2`, which has a published price
-table). Video and 3D: one adapter for fal.ai's queue API, with per-model field mappings and
-prices in configuration.
+**Decision.** The default and only required provider is Google's Gemini API, used through the
+Interactions API. Images use Nano Banana 2.1 (`gemini-nano-banana-2.1`); video uses Gemini Omni
+Flash (`gemini-omni-1.2-flash`). OpenAI remains an optional second image provider. There is no
+image-to-3D provider; 3D is done in local Blender.
 
-**Why.** OpenAI's Videos API was shut down on 2026-09-24. fal hosts many video and 3D models
-behind one submit/status/result/cancel lifecycle, so one adapter covers them. Model input schemas
-differ, so field names are configuration rather than code.
+**Alternatives.** OpenAI for images plus an aggregator (fal.ai) for video and image-to-3D. This
+was the first implementation, and it was removed at the maintainer's request to avoid
+depending on a second platform. OpenAI alone was also considered, but it has no video API: Sora 2
+was shut down on 2026-09-24.
 
-**Limitation.** Neither real provider has been exercised with live keys in this repository
-(no approved spend yet). Both are covered by HTTP-level tests against recorded API shapes.
+**Why.** Users should need exactly one key. Gemini is the only major provider that offers both
+image generation/editing and video generation under one key with published prices, so cost
+estimates come from built-in tables and need no user configuration. Video runs as a stored
+background interaction that can be polled and cancelled, which fits the restart-safe job system.
+
+**Trade-offs.** No transparent backgrounds or masks (available through the optional OpenAI
+provider); no automated image-to-3D. Google does not document background-mode support for Omni,
+so a synchronous fallback exists. Neither provider has been exercised with a live key in this
+repository yet; both are covered by HTTP-level tests against Google's and OpenAI's documented
+shapes.
 
 ## ADR-8: Licensing
 

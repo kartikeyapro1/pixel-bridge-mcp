@@ -7,34 +7,6 @@ export const CONFIG_FILE = 'pixelbridge.config.json';
 
 const usd = z.number().min(0).max(100_000);
 
-const falModelSchema = z.object({
-  kind: z.enum(['video', '3d']),
-  /**
-   * Price you have verified on the provider's model page. PixelBridge refuses to
-   * submit jobs for models without a price, rather than guessing.
-   */
-  pricing: z
-    .union([
-      z.object({ perSecondUsd: usd, defaultSeconds: z.number().positive().optional() }),
-      z.object({ perRequestUsd: usd }),
-    ])
-    .optional(),
-  /** Request field names for this model (fal models do not share one schema). */
-  fields: z
-    .object({
-      prompt: z.string().default('prompt'),
-      image: z.string().default('image_url'),
-      duration: z.string().optional(),
-    })
-    .default({ prompt: 'prompt', image: 'image_url' }),
-  /** Format for the duration field: '5' (number as string), 5 (number), or '5s'. */
-  durationFormat: z.enum(['string', 'number', 'seconds-suffix']).default('string'),
-  allowedDurations: z.array(z.number().positive()).optional(),
-  defaults: z.record(z.string(), z.unknown()).default({}),
-});
-
-export type FalModelConfig = z.infer<typeof falModelSchema>;
-
 export const configSchema = z.object({
   projectId: z.string().min(1).max(64).optional(),
   assetsDir: z.string().default('assets'),
@@ -67,6 +39,7 @@ export const configSchema = z.object({
     }),
   providers: z
     .object({
+      /** Optional alternative image provider (OPENAI_API_KEY). Gemini is preferred when both are set. */
       openai: z
         .object({
           enabled: z.boolean().default(true),
@@ -83,51 +56,35 @@ export const configSchema = z.object({
           timeoutMs: 240_000,
           maxRetries: 2,
         }),
-      fal: z
+      gemini: z
         .object({
           enabled: z.boolean().default(true),
-          queueUrl: z.string().url().default('https://queue.fal.run'),
-          defaultVideoModel: z.string().optional(),
-          default3dModel: z.string().optional(),
-          timeoutMs: z.number().int().min(1000).default(60_000),
+          baseUrl: z.string().url().default('https://generativelanguage.googleapis.com/v1beta'),
+          apiRevision: z.string().default('2026-05-20'),
+          imageModel: z.string().default('gemini-nano-banana-2.1'),
+          videoModel: z.string().default('gemini-omni-1.2-flash'),
+          /** Thinking is billed; "minimal" keeps image calls cheap and estimates tight. */
+          imageThinkingLevel: z.enum(['minimal', 'medium', 'high']).optional().default('minimal'),
+          /** Image interactions are not stored server-side unless enabled. */
+          storeImageInteractions: z.boolean().default(false),
+          defaultVideoSeconds: z.number().int().min(3).max(15).default(8),
+          timeoutMs: z.number().int().min(1000).default(240_000),
+          /** Used only if background execution is unavailable and the video call runs synchronously. */
+          videoSyncTimeoutMs: z.number().int().min(1000).default(900_000),
           maxRetries: z.number().int().min(0).max(5).default(2),
-          maxDownloadBytes: z
-            .number()
-            .int()
-            .min(1)
-            .default(500 * 1024 * 1024),
-          models: z.record(z.string(), falModelSchema).default({}),
         })
-        .default({
-          enabled: true,
-          queueUrl: 'https://queue.fal.run',
-          timeoutMs: 60_000,
-          maxRetries: 2,
-          maxDownloadBytes: 500 * 1024 * 1024,
-          models: {},
-        }),
+        .prefault({}),
       mock: z
         .object({ enabled: z.boolean().default(false), costPerCallUsd: usd.default(0.01) })
         .default({ enabled: false, costPerCallUsd: 0.01 }),
     })
-    .default({
-      openai: {
-        enabled: true,
-        baseUrl: 'https://api.openai.com/v1',
-        defaultModel: 'gpt-image-2',
-        timeoutMs: 240_000,
-        maxRetries: 2,
-      },
-      fal: {
-        enabled: true,
-        queueUrl: 'https://queue.fal.run',
-        timeoutMs: 60_000,
-        maxRetries: 2,
-        maxDownloadBytes: 500 * 1024 * 1024,
-        models: {},
-      },
-      mock: { enabled: false, costPerCallUsd: 0.01 },
-    }),
+    .prefault({}),
+  /** Largest provider output PixelBridge will download. */
+  maxDownloadBytes: z
+    .number()
+    .int()
+    .min(1)
+    .default(500 * 1024 * 1024),
   /** Per-image price overrides for OpenAI models, keyed by model then "quality:WxH". */
   imagePricingOverrides: z.record(z.string(), z.record(z.string(), usd)).default({}),
   blender: z
@@ -209,18 +166,10 @@ export const STARTER_CONFIG = {
     maxGenerationsPerDay: 100,
   },
   providers: {
-    openai: { defaultModel: 'gpt-image-2' },
-    fal: {
-      models: {
-        'fal-ai/kling-video/v2.5-turbo/pro/image-to-video': {
-          kind: 'video',
-          fields: { prompt: 'prompt', image: 'image_url', duration: 'duration' },
-          durationFormat: 'string',
-          allowedDurations: [5, 10],
-          _comment:
-            'Add "pricing": {"perSecondUsd": <price from https://fal.ai/models/...>} after checking the current price. Jobs are refused until a price is set.',
-        },
-      },
+    gemini: {
+      imageModel: 'gemini-nano-banana-2.1',
+      videoModel: 'gemini-omni-1.2-flash',
+      defaultVideoSeconds: 8,
     },
   },
 };

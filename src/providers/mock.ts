@@ -110,6 +110,10 @@ export class MockJobProvider implements JobProvider {
     ];
   }
 
+  defaultModel(kind: JobKind): string {
+    return kind === 'video' ? 'mock-video' : 'mock-3d';
+  }
+
   validate(): void {}
 
   estimate(p: JobSubmitParams): CostEstimate {

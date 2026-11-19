@@ -4,7 +4,7 @@
  MCP client (Claude Code, Cursor, …)         Human / scripts / CI
           │ stdio (JSON-RPC)                          │
           ▼                                           ▼
-   src/mcp/server.ts  (18 tools)             src/cli.ts
+   src/mcp/server.ts  (17-18 tools)             src/cli.ts
           └──────────────┬───────────────────────────┘
                          ▼
                src/services/  (use cases)
@@ -12,8 +12,8 @@
           │                 │                     │
           ▼                 ▼                     ▼
    src/providers/      src/core/            BlenderService ──spawn──► blender --background
-   OpenAIImage         registry (assets,                           --factory-startup
-   FalQueue            cache, manifests)                           --disable-autoexec
+   Gemini (img+video)  registry (assets,                           --factory-startup
+   OpenAIImage, Mock   cache, manifests)                           --disable-autoexec
    Mock                budget (ledger)                             --python blender/pixelbridge_bpy.py
                        db (node:sqlite)                            -- req.json res.json
                        paths (confinement)
@@ -52,8 +52,8 @@
 ## Async jobs
 
 `jobs` rows store the provider's resume state (status/result/cancel URLs; never credentials).
-`get_job` polls; on completion it downloads outputs (size-capped, HTTPS-only, no credentials sent
-to the CDN), registers them and settles the ledger. A failed download leaves the job `completed`,
+`get_job` polls; on completion it downloads outputs (size-capped, HTTPS-only, credentials only
+to the provider's own API host), registers them and settles the ledger. A failed download leaves the job `completed`,
 so the next `get_job` retries it. Submitted jobs count as committed spend and no longer occupy
 the in-flight slot used for images. The number of running jobs is limited separately.
 
@@ -77,7 +77,7 @@ Implement `ImageProvider` or `JobProvider` (`src/providers/types.ts`):
 - Classify errors so `details.billed === false` only when the provider certainly did not charge.
 
 Register it in `src/services/context.ts`, add mocked-HTTP tests like
-`tests/unit/fal-queue.test.ts`, and document pricing in `docs/providers.md`.
+`tests/unit/gemini.test.ts`, and document pricing in `docs/providers.md`.
 
 ## Adding an engine profile
 

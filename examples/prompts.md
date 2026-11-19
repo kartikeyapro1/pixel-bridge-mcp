@@ -27,8 +27,8 @@ These assume PixelBridge is connected (see the README).
 
 **Video reference**
 
-> Quote a 5-second image-to-video clip of the "ember" front reference doing an idle animation.
-> Don't submit until I approve. Then poll the job and save it.
+> Quote a 5-second 360p video of the "ember" character doing an idle animation, using its front
+> and side references. Don't submit until I approve. Then poll the job and save it.
 
 **Audit**
 

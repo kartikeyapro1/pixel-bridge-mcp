@@ -28,14 +28,12 @@ export class PixelBridge {
       models: p.describeModels(),
     }));
     const setup: string[] = [];
-    if (!ctx.imageProviders.has('openai'))
-      setup.push('Image generation: set OPENAI_API_KEY for the MCP server process.');
-    if (!ctx.jobProviders.has('fal'))
-      setup.push('Video / image-to-3D: set FAL_KEY and configure providers.fal.models.');
-    else if (jobProviders.find((p) => p.id === 'fal')?.models.some((m) => !m.priced)) {
+    if (!ctx.imageProviders.has('gemini') && !ctx.imageProviders.has('openai')) {
       setup.push(
-        'Some fal models have no configured price; jobs for them are refused until you add pricing.',
+        'Images and video: set GEMINI_API_KEY (Google AI Studio) for the MCP server process. One key covers both.',
       );
+    } else if (!ctx.jobProviders.has('gemini')) {
+      setup.push('Video: set GEMINI_API_KEY (the OpenAI key covers images only).');
     }
     const blender = opts.checkBlender === false ? null : await ctx.blender.detect();
     if (blender && !blender.found) setup.push(blender.message);

@@ -3,12 +3,13 @@
  * logs, error messages returned to agents, and stored provider responses.
  */
 
-const SECRET_ENV_VARS = ['OPENAI_API_KEY', 'FAL_KEY'];
+const SECRET_ENV_VARS = ['GEMINI_API_KEY', 'GOOGLE_API_KEY', 'OPENAI_API_KEY'];
 
 const PATTERNS: RegExp[] = [
   /\bsk-[A-Za-z0-9_-]{8,}/g, // OpenAI-style keys
   /\b(Bearer|Key)\s+[A-Za-z0-9._:\-]{8,}/gi, // Authorization header values
   /([?&](?:key|api_key|token|access_token)=)[^&\s"']+/gi, // secrets in query strings
+  /\bAIza[0-9A-Za-z_-]{30,}/g, // Google API keys
 ];
 
 const extraSecrets = new Set<string>();
@@ -35,6 +36,7 @@ export function redact(text: string): string {
   out = out.replace(PATTERNS[0]!, '[REDACTED]');
   out = out.replace(PATTERNS[1]!, (_m, scheme: string) => `${scheme} [REDACTED]`);
   out = out.replace(PATTERNS[2]!, (_m, prefix: string) => `${prefix}[REDACTED]`);
+  out = out.replace(PATTERNS[3]!, '[REDACTED]');
   return out;
 }
 
@@ -45,7 +47,7 @@ export function redactValue(value: unknown): unknown {
   if (value && typeof value === 'object') {
     const out: Record<string, unknown> = {};
     for (const [k, v] of Object.entries(value)) {
-      if (/^(authorization|api[_-]?key|token|secret|password|cookie)$/i.test(k)) {
+      if (/^(authorization|api[_-]?key|x-goog-api-key|token|secret|password|cookie)$/i.test(k)) {
         out[k] = '[REDACTED]';
       } else {
         out[k] = redactValue(v);

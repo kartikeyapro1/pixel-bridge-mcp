@@ -22,9 +22,10 @@ schemas; such changes are listed in CHANGELOG.md.
 
 ## Before the first public release
 
-- [ ] Live-verify the OpenAI adapter (generate + edit) with a low-quality request.
-- [ ] Live-verify at least one fal video model and one fal 3D model; record working field mappings
-      in docs/providers.md.
+- [ ] Live-verify Gemini images (generate + edit with references) with one 1K request (~$0.04).
+- [ ] Live-verify Gemini video with a 3 s 360p clip (~$0.09): background mode, polling, download,
+      usage-based cost. Record whether background mode is accepted.
+- [ ] Optionally live-verify the OpenAI image adapter.
 - [ ] Test Blender 4.2 LTS (declared minimum) or raise the minimum.
 - [ ] Run the MCP server from a real Claude Code session end to end.
 - [ ] Decide the public repository name and npm package name (`pixelbridge-mcp` is free on GitHub

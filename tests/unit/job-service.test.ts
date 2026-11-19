@@ -85,8 +85,7 @@ describe('JobService', () => {
       return original(url);
     };
     t = makeBridge({ jobProviders: [p] });
-    const id = (await t.pb.jobs.submit({ kind: '3d', image: undefined, prompt: 'x', collection: 'c' })).job!
-      .id;
+    const id = (await t.pb.jobs.submit({ kind: '3d', prompt: 'x', collection: 'c' })).job!.id;
     await expect(t.pb.jobs.refresh(id)).rejects.toMatchObject({ code: 'DOWNLOAD_FAILED' });
     expect(t.pb.jobs.get(id).status).toBe('completed');
     const r = await t.pb.jobs.refresh(id);

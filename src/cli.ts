@@ -22,7 +22,7 @@ Setup
 Generation (billable; prints an estimate, add --yes to approve)
   image <prompt> -c <collection> [--quality low|medium|high] [--size WxH] [--model m] [--dry-run] [--yes]
   turnaround <description> -c <collection> [--style s] [--views front,side,back] [--dry-run] [--yes]
-  video <prompt> -c <collection> [--image ref] [--duration s] [--model m] [--dry-run] [--yes]
+  video <prompt> -c <collection> [--image ref]... [--duration 3-15] [--resolution 720p] [--aspect 16:9] [--dry-run] [--yes]
   jobs | job <jobId> | cancel <jobId>
 
 Blender (local, free)
@@ -56,7 +56,8 @@ async function main(argv: string[]): Promise<number> {
       provider: { type: 'string' },
       style: { type: 'string' },
       views: { type: 'string' },
-      image: { type: 'string' },
+      image: { type: 'string', multiple: true },
+      aspect: { type: 'string' },
       duration: { type: 'string' },
       ref: { type: 'string', multiple: true },
       note: { type: 'string' },
@@ -183,8 +184,10 @@ async function main(argv: string[]): Promise<number> {
           kind: 'video' as const,
           prompt: need(rest.join(' '), 'prompt'),
           collection: need(values.collection, '--collection'),
-          ...(values.image ? { image: values.image } : {}),
+          ...(values.image?.length ? { images: values.image } : {}),
           ...(values.duration ? { durationSeconds: Number(values.duration) } : {}),
+          ...(values.resolution ? { resolution: values.resolution } : {}),
+          ...(values.aspect ? { aspectRatio: values.aspect } : {}),
           ...(values.model ? { model: values.model } : {}),
           ...(values.provider ? { provider: values.provider } : {}),
         };

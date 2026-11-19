@@ -145,7 +145,7 @@ export function createServer(pb: PixelBridge): McpServer {
     'edit_image',
     {
       title: 'Edit image / generate from references',
-      description: `Image edit or reference-conditioned generation: the first image is edited; additional images (up to 16 total) act as references. Optional mask (PNG, transparent = editable). ${PAID_NOTE}`,
+      description: `Image edit or reference-conditioned generation: the first image is edited; additional images act as references (Gemini: up to 14; OpenAI: up to 16). Optional mask (OpenAI only). ${PAID_NOTE}`,
       inputSchema: z.object({
         prompt: z.string().min(1).max(32_000),
         images: z.array(imageRef).min(1).max(16),
@@ -289,24 +289,23 @@ export function createServer(pb: PixelBridge): McpServer {
     {
       title: 'Generate video (async)',
       description:
-        'Submits a text- or image-to-video job and returns a job id immediately; poll get_job. Job state persists across server restarts. ' +
-        'Generated video is a motion reference, not a skeletal animation. ' +
+        'Submits a text- or image-to-video job (default: Gemini Omni Flash, 3-15 s, 360p/720p/1080p/4k, 16:9 or 9:16, up to 6 reference images) and returns a job id immediately; poll get_job. ' +
+        'Job state persists across server restarts. Generated video is a motion reference, not a skeletal animation. ' +
         PAID_NOTE,
       inputSchema: z.object({
         prompt: z.string().min(1).max(10_000),
         collection,
         category,
-        image: imageRef.optional().describe('Start frame / reference image (image-to-video models).'),
-        durationSeconds: z.number().positive().max(60).optional(),
-        model: z
-          .string()
+        images: z
+          .array(imageRef)
+          .max(6)
           .optional()
-          .describe('Provider model id (e.g. a fal endpoint id). See get_status for configured models.'),
+          .describe('Reference or start-frame images (character consistency, image-to-video).'),
+        durationSeconds: z.number().int().min(1).max(60).optional().describe('Default 8.'),
+        resolution: z.enum(['360p', '720p', '1080p', '4k']).optional().describe('Default 720p.'),
+        aspectRatio: z.enum(['16:9', '9:16']).optional().describe('Default 16:9.'),
+        model: z.string().optional().describe('See get_status for available video models.'),
         provider: z.string().optional(),
-        extraInput: z
-          .record(z.string(), z.unknown())
-          .optional()
-          .describe('Additional model-specific input fields.'),
         bypassCache,
         dryRun,
         confirmCostUsd,
@@ -316,30 +315,33 @@ export function createServer(pb: PixelBridge): McpServer {
     async (args) => guard(async () => ok(jobSummary(await pb.jobs.submit({ ...args, kind: 'video' })))),
   );
 
-  server.registerTool(
-    'generate_3d_from_image',
-    {
-      title: 'Image-to-3D (async)',
-      description:
-        'Submits an image-to-3D reconstruction job to an external provider (e.g. a fal 3D endpoint) and returns a job id; poll get_job. ' +
-        'Results usually need cleanup (retopology, decimation, UVs) before game use; run validate_3d_asset on the output. ' +
-        PAID_NOTE,
-      inputSchema: z.object({
-        image: imageRef,
-        collection,
-        category,
-        prompt: z.string().max(4000).optional(),
-        model: z.string().optional(),
-        provider: z.string().optional(),
-        extraInput: z.record(z.string(), z.unknown()).optional(),
-        bypassCache,
-        dryRun,
-        confirmCostUsd,
-      }),
-      annotations: { readOnlyHint: false, destructiveHint: false, openWorldHint: true },
-    },
-    async (args) => guard(async () => ok(jobSummary(await pb.jobs.submit({ ...args, kind: '3d' })))),
-  );
+  // Only offered when a configured provider can actually do it (the Gemini API cannot).
+  if (pb.ctx.supportsJobKind('3d')) {
+    server.registerTool(
+      'generate_3d_from_image',
+      {
+        title: 'Image-to-3D (async)',
+        description:
+          'Submits an image-to-3D reconstruction job and returns a job id; poll get_job. ' +
+          'Results usually need cleanup (retopology, decimation, UVs) before game use; run validate_3d_asset on the output. ' +
+          PAID_NOTE,
+        inputSchema: z.object({
+          image: imageRef,
+          collection,
+          category,
+          prompt: z.string().max(4000).optional(),
+          model: z.string().optional(),
+          provider: z.string().optional(),
+          bypassCache,
+          dryRun,
+          confirmCostUsd,
+        }),
+        annotations: { readOnlyHint: false, destructiveHint: false, openWorldHint: true },
+      },
+      async ({ image, ...rest }) =>
+        guard(async () => ok(jobSummary(await pb.jobs.submit({ ...rest, images: [image], kind: '3d' })))),
+    );
+  }
 
   server.registerTool(
     'get_job',

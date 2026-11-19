@@ -36,8 +36,8 @@ and engine pre-import validation. The generation calls themselves are thin adapt
 | 9   | CLI?                                | Yes, built on the same services. It is needed for scripting, CI, debugging and humans approving spend (`--yes`).                                                                                                                                                                                                                                           |
 | 10  | TypeScript + Python?                | Yes. TypeScript for the MCP SDK and `npx` distribution; Python only where unavoidable (inside Blender).                                                                                                                                                                                                                                                    |
 | 11  | Blender in core or adapter?         | A service behind a process boundary with a JSON protocol. It lives in this repo for now and can become a separate package without API changes.                                                                                                                                                                                                             |
-| 12  | Video in V1?                        | Architecture yes, priority low. OpenAI shut down the Sora 2 Videos API on 2026-09-24; video is the least useful modality for game assets (it is not skeletal animation); prices vary widely by model. Shipped as a generic async job system over fal.ai's queue API, without built-in prices.                                                              |
-| 13  | Image-to-3D via providers?          | Yes, through the same async job system. Output still needs cleanup before game use.                                                                                                                                                                                                                                                                        |
+| 12  | Video in V1?                        | Architecture yes, priority low. OpenAI shut down the Sora 2 Videos API on 2026-09-24; video is the least useful modality for game assets (it is not skeletal animation); prices vary widely by model. Shipped on the Gemini API (Omni Flash) as a restart-safe async job, under the same single key as images.                                             |
+| 13  | Image-to-3D via providers?          | Not in V1. No single-key provider offers it, and the maintainer chose one key over more capability. The job system supports it if a provider is added later.                                                                                                                                                                                               |
 | 14  | Unnecessary complexity in the brief | A separate vision-model API for render comparison (the calling agent already sees images); eight parallel specialist agents for a codebase this size; many providers before one is proven; Unity/Unreal adapters in V1.                                                                                                                                    |
 | 15  | What impresses engineers            | Correctness under concurrency, explicit trust boundaries, honest cost accounting, tests that run real Blender, small dependency surface. Not tool count.                                                                                                                                                                                                   |
 | 16  | What makes people use it            | Free first run, cannot accidentally spend $50, files land in the repo with provenance, clear errors that tell the agent what to do next.                                                                                                                                                                                                                   |
@@ -47,10 +47,11 @@ and engine pre-import validation. The generation calls themselves are thin adapt
 ## Risks
 
 - **Provider churn.** In the two months before this was written, OpenAI retired `gpt-image-1`
-  (2026-10-23) and shut down the Sora 2 Videos API (2026-09-24). Adapters must be small and
+  (2026-10-23) and shut down the Sora 2 Videos API (2026-09-24); Google shut down Veo 3.1 preview
+  models (2026-10-22) and Imagen. Adapters must be small and
   prices must be data, not code.
-- **Pricing drift.** Built-in OpenAI prices are a dated transcription. fal prices are not shipped
-  at all; users enter verified prices. Estimates are labelled as estimates.
+- **Pricing drift.** Built-in Gemini and OpenAI prices are a dated transcription; unknown models
+  are refused. Estimates are labelled as estimates.
 - **Quality ceiling of primitive modelling.** Declarative primitives produce stylised, chunky
   characters (see `examples/specs/cartoon-cat.json`). That suits blockouts, props and low-poly
   styles. It will not reproduce detailed sculpted characters, and the docs say so.
@@ -67,7 +68,7 @@ and engine pre-import validation. The generation calls themselves are thin adapt
 
 - OpenAI image API reference and pricing: developers.openai.com/api/reference (images), /api/docs/pricing, /api/docs/guides/image-generation
 - OpenAI Videos API reference (shutdown notice): developers.openai.com/api/reference/resources/videos
-- fal.ai queue API: fal.ai/docs/model-apis/model-endpoints/queue
+- Gemini API (Interactions, image generation, Omni video, pricing): aistudio.google.com/docs
 - MCP TypeScript SDK v2: ts.sdk.modelcontextprotocol.io/v2
 - Blender MCP projects: github.com/ahujasid/blender-mcp, github.com/sandraschi/blender-mcp, github.com/VAST-AI-Research/tripo-mcp
 - Roblox mesh limits: Roblox developer forum threads on the 3D Importer (per-mesh triangle cap)

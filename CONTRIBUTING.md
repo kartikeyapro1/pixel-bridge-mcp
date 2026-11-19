@@ -27,7 +27,7 @@ Blender those tests are reported as **skipped**, which is fine for most changes 
 
 ## Good first contributions
 
-- Field mappings and verified pricing notes for fal models you have used (docs/providers.md).
+- Live-verification notes for Gemini models (request/response shapes, actual billed costs).
 - New engine validation profiles (Godot, Unity) in the style of `src/blender/roblox.ts`.
 - Additional example specs in `examples/specs/` (original designs only).
 - Blender version compatibility fixes (tested on the version you fix).

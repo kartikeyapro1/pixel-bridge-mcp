@@ -8,7 +8,7 @@ import { createLogger, type Logger } from '../core/logger.js';
 import { ProjectPaths, slugify } from '../core/paths.js';
 import { registerSecret } from '../core/redact.js';
 import { AssetRegistry } from '../core/registry.js';
-import { FalQueueProvider } from '../providers/fal-queue.js';
+import { GeminiImageProvider, GeminiVideoProvider } from '../providers/gemini.js';
 import { MockImageProvider, MockJobProvider } from '../providers/mock.js';
 import { OpenAIImageProvider } from '../providers/openai-image.js';
 import type { ImageProvider, JobKind, JobProvider } from '../providers/types.js';
@@ -69,9 +69,15 @@ export class AppContext {
     const fetchFn = opts.fetch ?? fetch;
     const p = this.config.providers;
 
+    // One key covers images and video: GEMINI_API_KEY (GOOGLE_API_KEY accepted as an alias).
+    const geminiKey = env.GEMINI_API_KEY || env.GOOGLE_API_KEY;
+    registerSecret(geminiKey);
+    const geminiOn = p.gemini.enabled && !!geminiKey;
+
     if (opts.imageProviders) {
       for (const ip of opts.imageProviders) this.imageProviders.set(ip.id, ip);
     } else {
+      if (geminiOn) this.imageProviders.set('gemini', new GeminiImageProvider(p.gemini, geminiKey!, fetchFn));
       const openaiKey = env.OPENAI_API_KEY;
       registerSecret(openaiKey);
       if (p.openai.enabled && openaiKey) {
@@ -85,9 +91,7 @@ export class AppContext {
     if (opts.jobProviders) {
       for (const jp of opts.jobProviders) this.jobProviders.set(jp.id, jp);
     } else {
-      const falKey = env.FAL_KEY;
-      registerSecret(falKey);
-      if (p.fal.enabled && falKey) this.jobProviders.set('fal', new FalQueueProvider(p.fal, falKey, fetchFn));
+      if (geminiOn) this.jobProviders.set('gemini', new GeminiVideoProvider(p.gemini, geminiKey!, fetchFn));
       if (p.mock.enabled) this.jobProviders.set('mock', new MockJobProvider(p.mock.costPerCallUsd));
     }
 
@@ -100,8 +104,11 @@ export class AppContext {
       if (!p) throw notConfigured(name);
       return p;
     }
-    const first = this.imageProviders.get('openai') ?? this.imageProviders.get('mock');
-    if (!first) throw notConfigured('openai');
+    const first =
+      this.imageProviders.get('gemini') ??
+      this.imageProviders.get('openai') ??
+      this.imageProviders.get('mock');
+    if (!first) throw notConfigured('gemini');
     return first;
   }
 
@@ -112,21 +119,34 @@ export class AppContext {
       return p;
     }
     for (const p of this.jobProviders.values()) {
-      if (!model || p.supports(kind, model)) return p;
+      if (model ? p.supports(kind, model) : p.defaultModel(kind) !== null) return p;
     }
-    throw notConfigured('fal');
+    if (kind === '3d') {
+      throw new PixelBridgeError(
+        'PROVIDER_UNSUPPORTED',
+        'No configured provider offers image-to-3D generation.',
+        {
+          hint: 'Build 3D models locally with build_blender_model (free, no API key).',
+        },
+      );
+    }
+    throw notConfigured('gemini');
   }
 
   defaultJobModel(kind: JobKind, provider: JobProvider): string {
-    if (provider.id === 'mock') return kind === 'video' ? 'mock-video' : 'mock-3d';
-    const fal = this.config.providers.fal;
-    const configured = kind === 'video' ? fal.defaultVideoModel : fal.default3dModel;
-    if (configured) return configured;
-    const first = Object.entries(fal.models).find(([, m]) => m.kind === kind);
-    if (first) return first[0];
-    throw new PixelBridgeError('PROVIDER_NOT_CONFIGURED', `No ${kind} model configured for fal.`, {
-      hint: `Add a providers.fal.models entry with kind "${kind}" to pixelbridge.config.json (see docs/providers.md).`,
-    });
+    const model = provider.defaultModel(kind);
+    if (!model) {
+      throw new PixelBridgeError(
+        'PROVIDER_UNSUPPORTED',
+        `Provider "${provider.id}" does not support ${kind} generation.`,
+      );
+    }
+    return model;
+  }
+
+  /** Whether any configured job provider supports a kind (used to hide unusable tools). */
+  supportsJobKind(kind: JobKind): boolean {
+    return [...this.jobProviders.values()].some((p) => p.defaultModel(kind) !== null);
   }
 
   close(): void {
@@ -138,7 +158,8 @@ function notConfigured(name: string): PixelBridgeError {
   const hints: Record<string, string> = {
     openai:
       'Set OPENAI_API_KEY in the environment of the MCP server (or enable the mock provider for offline testing).',
-    fal: 'Set FAL_KEY in the environment of the MCP server and configure providers.fal.models.',
+    gemini:
+      'Set GEMINI_API_KEY (from Google AI Studio) in the environment of the MCP server. One key covers images and video. For offline testing set PIXELBRIDGE_MOCK=1.',
     mock: 'Enable providers.mock in pixelbridge.config.json or set PIXELBRIDGE_MOCK=1.',
   };
   return new PixelBridgeError('PROVIDER_NOT_CONFIGURED', `Provider "${name}" is not configured.`, {

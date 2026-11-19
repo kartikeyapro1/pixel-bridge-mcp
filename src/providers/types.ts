@@ -66,9 +66,11 @@ export interface JobSubmitParams {
   kind: JobKind;
   model: string;
   prompt?: string;
-  image?: InputImage;
+  /** Reference / start-frame images (video) or the source image (3D). */
+  images?: InputImage[];
   durationSeconds?: number;
-  extraInput?: Record<string, unknown>;
+  resolution?: string;
+  aspectRatio?: string;
 }
 
 /** Opaque state persisted in the jobs table so a restarted server can resume. Never contains credentials. */
@@ -89,7 +91,9 @@ export interface JobOutputFile {
 export interface JobProvider {
   readonly id: string;
   supports(kind: JobKind, model: string): boolean;
-  describeModels(): { model: string; kind: JobKind; priced: boolean; pricing?: unknown }[];
+  describeModels(): { model: string; kind: JobKind; priced: boolean; default?: boolean; pricing?: unknown }[];
+  /** Default model for a kind, or null if this provider does not support the kind. */
+  defaultModel(kind: JobKind): string | null;
   estimate(params: JobSubmitParams): CostEstimate;
   validate(params: JobSubmitParams): void;
   submit(params: JobSubmitParams): Promise<{ remoteId: string; state: ProviderJobState }>;

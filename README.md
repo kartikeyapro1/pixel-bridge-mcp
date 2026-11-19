@@ -5,6 +5,9 @@ clients) produce game assets: reference images, videos and Blender 3D models. Ge
 under spending limits, and every file is cached, versioned, recorded with how it was made, and
 checked against the target engine before you import it.
 
+**One API key is enough.** A Google Gemini API key covers image generation, image editing and
+video. 3D models are built locally in Blender, which needs no key.
+
 ```
 "Make an original chibi cat character for my Roblox game: reference views, a Blender model,
  previews, and a glb I can import."
@@ -40,22 +43,23 @@ See [docs/product-assessment.md](docs/product-assessment.md) for the competitive
 
 ## What works today
 
-| Capability                                                                                                                                    | Status                                                                     |
-| --------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------- |
-| Blender: build model from spec, reference planes, previews (Workbench/EEVEE/Cycles), inspect, export glb/gltf/fbx/obj, re-import verification | Working, tested against Blender 5.3                                        |
-| Roblox pre-import validation                                                                                                                  | Working (conservative, configurable limits)                                |
-| Asset registry, manifests, versioning, request cache                                                                                          | Working                                                                    |
-| Budget ledger, approvals, concurrency limits (cross-process)                                                                                  | Working, tested with 8 concurrent processes                                |
-| OpenAI images: generate, edit / multi-reference, character turnarounds                                                                        | Implemented; tested with mocked HTTP; **not yet run with a live key**      |
-| Video (fal.ai queue): submit, poll, download, cancel, restart-safe jobs                                                                       | Implemented; tested with mocked HTTP; **no built-in prices**; not run live |
-| Image-to-3D (fal.ai queue)                                                                                                                    | Same job system as video; output schema detection is heuristic             |
-| MCP server (18 tools, stdio) and CLI                                                                                                          | Working                                                                    |
+| Capability                                                                                                                                    | Status                                                                |
+| --------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------- |
+| Blender: build model from spec, reference planes, previews (Workbench/EEVEE/Cycles), inspect, export glb/gltf/fbx/obj, re-import verification | Working, tested against Blender 5.3                                   |
+| Roblox pre-import validation                                                                                                                  | Working (conservative, configurable limits)                           |
+| Asset registry, manifests, versioning, request cache                                                                                          | Working                                                               |
+| Budget ledger, approvals, concurrency limits (cross-process)                                                                                  | Working, tested with 8 concurrent processes                           |
+| Images via Gemini API (Nano Banana 2.1): generate, edit with up to 14 references, character turnarounds                                       | Implemented; tested with mocked HTTP; **not yet run with a live key** |
+| Video via Gemini API (Omni Flash): background jobs, poll, download, cancel, restart-safe                                                      | Implemented; tested with mocked HTTP; **not yet run with a live key** |
+| Optional OpenAI image provider (adds transparent backgrounds and masks)                                                                       | Implemented; tested with mocked HTTP                                  |
+| MCP server (17 tools, stdio) and CLI                                                                                                          | Working                                                               |
 
 ## Requirements
 
 - Node.js ≥ 22.15 (uses the built-in `node:sqlite`)
 - Blender ≥ 4.2 for 3D tools (verified on 5.3.0; 4.2–5.2 accepted but untested)
-- Optional: `OPENAI_API_KEY` for images, `FAL_KEY` for video / image-to-3D
+- For images and video: `GEMINI_API_KEY` from [Google AI Studio](https://aistudio.google.com) (paid tier;
+  these models have no free tier). Not needed for the Blender tools.
 
 ## Install
 
@@ -79,8 +83,7 @@ Add the server to the project you want assets in. `.mcp.json` in that project:
       "args": ["/absolute/path/to/pixelbridge/dist/mcp-entry.js"],
       "env": {
         "PIXELBRIDGE_PROJECT_ROOT": "/absolute/path/to/your/game",
-        "OPENAI_API_KEY": "${OPENAI_API_KEY}",
-        "FAL_KEY": "${FAL_KEY}"
+        "GEMINI_API_KEY": "${GEMINI_API_KEY}"
       }
     }
   }
@@ -91,7 +94,7 @@ Or with the CLI:
 
 ```bash
 claude mcp add pixelbridge --scope project \
-  -e PIXELBRIDGE_PROJECT_ROOT="$PWD" -e OPENAI_API_KEY="$OPENAI_API_KEY" \
+  -e PIXELBRIDGE_PROJECT_ROOT="$PWD" -e GEMINI_API_KEY="$GEMINI_API_KEY" \
   -- node /absolute/path/to/pixelbridge/dist/mcp-entry.js
 ```
 
@@ -119,8 +122,7 @@ labelled `mock: true` in metadata.
 | `edit_image`                         | Edit / reference-conditioned generation (up to 16 images, optional mask)        | paid  |
 | `generate_character_turnaround`      | Front view, then side/back/¾ conditioned on the front; quoted as one total      | paid  |
 | `list_assets`, `get_asset`           | Registry queries; `get_asset` can return the image                              | free  |
-| `generate_video`                     | Async text/image-to-video job                                                   | paid  |
-| `generate_3d_from_image`             | Async image-to-3D job                                                           | paid  |
+| `generate_video`                     | Async text/image-to-video job (3–15 s, up to 6 reference images)                | paid  |
 | `get_job`, `list_jobs`, `cancel_job` | Poll, download, cancel (state survives restarts)                                | free  |
 | `get_model_spec_guide`               | Schema and conventions for model specs                                          | free  |
 | `build_blender_model`                | Spec → new `.blend` version (+ optional reference planes), stats, Roblox report | local |
@@ -134,10 +136,10 @@ Every paid tool accepts `dryRun` (quote only), `bypassCache`, and `confirmCostUs
 ### The approval protocol
 
 ```
-agent → generate_character_turnaround {...}
-      ← error APPROVAL_REQUIRED: estimated $0.52 (3 views, high quality, 1024x1536),
-        hint: "Show the user this estimate ... call again with confirmCostUsd: 0.52"
-agent → (asks the user) → generate_character_turnaround {..., confirmCostUsd: 0.52}
+agent → generate_video {...}
+      ← error APPROVAL_REQUIRED: estimated $0.57 (8 s video at 720p),
+        hint: "Show the user this estimate ... call again with confirmCostUsd: 0.574"
+agent → (asks the user) → generate_video {..., confirmCostUsd: 0.574}
 ```
 
 The threshold relies on the agent asking a human. The **hard guarantees** are
@@ -153,6 +155,7 @@ pixelbridge status
 pixelbridge image "isometric wooden crate, game prop" -c crate --quality low --dry-run
 pixelbridge image "isometric wooden crate, game prop" -c crate --quality low --yes
 pixelbridge turnaround "an original orange chibi cat" -c pip --style "soft cartoon" --yes
+pixelbridge video "the cat waves and blinks" -c pip --image ast_… --duration 5 --resolution 360p --yes
 pixelbridge build examples/specs/cartoon-cat.json -c pip --ref front=ast_… --ref side=ast_…
 pixelbridge render ast_… --views front,side,three_quarter
 pixelbridge export ast_… --formats glb,fbx
@@ -192,24 +195,16 @@ atomically (temp file + rename).
 {
   "budget": {
     "projectLimitUsd": 5,
-    "providerLimitsUsd": { "fal": 3 },
     "approvalThresholdUsd": 0.25,
     "maxCostPerCallUsd": 2,
     "maxGenerationsPerDay": 100,
     "maxInFlight": 3
   },
   "providers": {
-    "openai": { "defaultModel": "gpt-image-2" },
-    "fal": {
-      "defaultVideoModel": "fal-ai/kling-video/v2.5-turbo/pro/image-to-video",
-      "models": {
-        "fal-ai/kling-video/v2.5-turbo/pro/image-to-video": {
-          "kind": "video",
-          "pricing": { "perSecondUsd": 0.07 },
-          "fields": { "prompt": "prompt", "image": "image_url", "duration": "duration" },
-          "allowedDurations": [5, 10]
-        }
-      }
+    "gemini": {
+      "imageModel": "gemini-nano-banana-2.1",
+      "videoModel": "gemini-omni-1.2-flash",
+      "defaultVideoSeconds": 8
     }
   },
   "pipeline": { "maxModelVersions": 12 },
@@ -217,30 +212,35 @@ atomically (temp file + rename).
 }
 ```
 
-The fal price above is an example. **Check the current price on the model's fal.ai page before
-using it.** See [docs/providers.md](docs/providers.md) and
+See [docs/providers.md](docs/providers.md) and
 [examples/pixelbridge.config.example.json](examples/pixelbridge.config.example.json).
 
-| Environment variable       | Purpose                                               |
-| -------------------------- | ----------------------------------------------------- |
-| `OPENAI_API_KEY`           | Enables the OpenAI image provider                     |
-| `FAL_KEY`                  | Enables the fal.ai video / 3D provider                |
-| `BLENDER_PATH`             | Explicit Blender executable (otherwise auto-detected) |
-| `PIXELBRIDGE_PROJECT_ROOT` | Project directory (default: current directory)        |
-| `PIXELBRIDGE_MOCK=1`       | Enable offline mock providers                         |
+| Environment variable       | Purpose                                                          |
+| -------------------------- | ---------------------------------------------------------------- |
+| `GEMINI_API_KEY`           | Images and video (Gemini API). `GOOGLE_API_KEY` is accepted too. |
+| `OPENAI_API_KEY`           | Optional second image provider                                   |
+| `BLENDER_PATH`             | Explicit Blender executable (otherwise auto-detected)            |
+| `PIXELBRIDGE_PROJECT_ROOT` | Project directory (default: current directory)                   |
+| `PIXELBRIDGE_MOCK=1`       | Enable offline mock providers                                    |
 
 ## Costs
 
-You pay providers directly with your own keys; PixelBridge has no service of its own. Built-in
-OpenAI estimates come from OpenAI's published per-image table (transcribed 2026-11-19). For
-example, `gpt-image-2` medium 1024×1024 costs about $0.053, and a three-view turnaround at medium
-1024×1536 costs about $0.15 including reference inputs. Actual cost is computed from the usage
-tokens OpenAI returns. Models without a published table get an extrapolated, labelled upper-bound
-estimate. Unknown models are refused. For fal you supply verified prices.
+You pay Google directly with your own key; PixelBridge has no service of its own. Estimates come
+from Google's published prices (transcribed 2026-11-19). Typical costs with the defaults:
+
+| Asset                                     | Estimate               |
+| ----------------------------------------- | ---------------------- |
+| One reference image (Nano Banana 2.1, 1K) | ~$0.04                 |
+| Three-view character turnaround (1K)      | ~$0.13                 |
+| 8 s video at 360p / 720p / 1080p          | ~$0.20 / $0.57 / $0.85 |
+| Blender model, previews, exports          | free (local)           |
+
+Actual cost is computed from the token usage in each response. Unknown models are refused, not
+guessed.
 
 Local limits cannot cap provider billing in every failure mode (for example, a request that timed
-out but was processed is counted as "unknown" and still billed). **Also set spending limits in your
-provider dashboards.**
+out but was processed is counted as "unknown" and still billed). **Also set a budget alert in
+Google Cloud billing.**
 
 ## Security model
 
@@ -250,8 +250,8 @@ provider dashboards.**
   Blender runs with your user's permissions.
 - **Filesystem confinement.** Agent-supplied paths must resolve inside the project root after
   symlinks are resolved. Inputs are type-checked by magic bytes and size-capped.
-- **Credentials** are read from the environment only, sent only to their provider (the fal API key
-  only to the configured queue host, never to returned URLs or the CDN), and redacted from logs,
+- **Credentials** are read from the environment only, sent only to their provider's API host
+  (the Gemini key only to `generativelanguage.googleapis.com`), and redacted from logs,
   errors and tool output.
 - **Local transport only** (stdio). There is no network listener.
 - **Nothing is published.** No tool uploads to Roblox or anywhere else.
@@ -276,15 +276,17 @@ via the 3D Importer; see [docs/roblox.md](docs/roblox.md).
 ## Known limitations
 
 - Primitive-based modelling suits blockouts, props and stylised low-poly characters. It cannot
-  reproduce detailed sculpted characters. For those, use `generate_3d_from_image` and clean up
-  the result in Blender.
+  reproduce detailed sculpted characters. Automatic image-to-3D reconstruction is not included,
+  because no single-key provider offers it.
 - Turnaround views are visual references, not measured orthographic drawings. Consistency between
   views is not guaranteed.
 - Generated video is a motion reference, not skeletal animation.
-- Live calls to OpenAI and fal have not been made from this repository yet; request/response
-  handling is verified against the documented API shapes only.
-- fal model input schemas differ; each model needs a field mapping in config. Output file
-  detection is heuristic.
+- No live calls to the Gemini API (or OpenAI) have been made from this repository yet; request
+  and response handling is verified against Google's documented shapes only. In particular,
+  Google does not document whether Gemini Omni video supports background mode. PixelBridge falls
+  back to a synchronous call if it does not, and the tool then blocks for minutes.
+- Gemini images: no transparent backgrounds, no masks, one image per call. The optional OpenAI
+  provider covers the first two.
 - Workbench previews render colours darker than the material hex values; use `engine: "eevee"`
   for closer colour.
 - Each Blender operation starts a new Blender process (~2.5 s overhead).
@@ -296,7 +298,7 @@ via the 3D Importer; see [docs/roblox.md](docs/roblox.md).
 | ---------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
 | `PROVIDER_NOT_CONFIGURED`                | The key is not in the **MCP server's** environment. Put it in the `env` block of `.mcp.json` or export it before starting the client. |
 | `BLENDER_NOT_FOUND`                      | Set `BLENDER_PATH` or `blender.path` to the executable (`blender.exe` on Windows).                                                    |
-| `PRICE_UNKNOWN`                          | Add a verified price for that model to config (see docs/providers.md).                                                                |
+| `PRICE_UNKNOWN`                          | The model has no known price; use a model listed in docs/providers.md.                                                                |
 | `APPROVAL_REQUIRED`                      | Expected for expensive calls; approve and pass `confirmCostUsd`.                                                                      |
 | `BUDGET_EXCEEDED` with nothing generated | Check `get_budget` for "unknown" entries (timeouts). Raise `projectLimitUsd` after checking the provider dashboard.                   |
 | `REFINEMENT_LIMIT`                       | The agent hit `pipeline.maxModelVersions`; review the renders before raising it.                                                      |

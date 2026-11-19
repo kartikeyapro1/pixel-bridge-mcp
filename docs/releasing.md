@@ -29,6 +29,6 @@ schemas; such changes are listed in CHANGELOG.md.
 - [ ] Optionally live-verify the OpenAI image adapter.
 - [ ] Test Blender 4.2 LTS (declared minimum) or raise the minimum.
 - [ ] Run the MCP server from at least two different MCP clients end to end.
-- [ ] Decide the public repository name and npm package name (`pixelbridge-mcp` is free on GitHub
-      under the owner account at time of writing; check npm).
+- [x] Public repository: https://github.com/kartikeyapro1/PixelBridge
+- [ ] Check that the npm package name `pixelbridge-mcp` is available before publishing.
 - [ ] Enable GitHub private vulnerability reporting.

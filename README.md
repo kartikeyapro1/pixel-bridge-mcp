@@ -32,8 +32,8 @@ Agent: generate_image  → assets/props/potion/references/potion-image.jpg      
 **1. Install** (Node.js 22.15 or newer):
 
 ```bash
-git clone https://github.com/<you>/pixelbridge-mcp.git
-cd pixelbridge-mcp
+git clone https://github.com/kartikeyapro1/PixelBridge.git
+cd PixelBridge
 npm ci
 npm run build
 ```
@@ -57,7 +57,7 @@ per-client steps):
   "mcpServers": {
     "pixelbridge": {
       "command": "node",
-      "args": ["/absolute/path/to/pixelbridge-mcp/dist/mcp-entry.js"]
+      "args": ["/absolute/path/to/PixelBridge/dist/mcp-entry.js"]
     }
   }
 }

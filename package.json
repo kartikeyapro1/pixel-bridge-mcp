@@ -62,5 +62,13 @@
     "typescript": "^5.9.3",
     "typescript-eslint": "^8.73.0",
     "vitest": "^4.1.12"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/kartikeyapro1/PixelBridge.git"
+  },
+  "homepage": "https://github.com/kartikeyapro1/PixelBridge#readme",
+  "bugs": {
+    "url": "https://github.com/kartikeyapro1/PixelBridge/issues"
   }
 }

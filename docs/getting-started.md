@@ -6,14 +6,14 @@ Blender 4.2+ is optional and only needed for the 3D tools.
 ## 1. Install
 
 ```bash
-git clone https://github.com/<you>/pixelbridge-mcp.git
-cd pixelbridge-mcp
+git clone https://github.com/kartikeyapro1/PixelBridge.git
+cd PixelBridge
 npm ci
 npm run build
 ```
 
 `dist/mcp-entry.js` is the MCP server and `dist/cli.js` is the command-line tool. The rest of
-this guide writes `pixelbridge` for `node /path/to/pixelbridge-mcp/dist/cli.js`. Run `npm link`
+this guide writes `pixelbridge` for `node /path/to/PixelBridge/dist/cli.js`. Run `npm link`
 in the repository if you want an actual `pixelbridge` command on your PATH.
 
 ## 2. Get a Gemini API key
@@ -42,11 +42,11 @@ Details and alternatives (environment variables, CI): [credentials.md](credentia
 
 PixelBridge is a standard stdio MCP server. Every client needs the same three things:
 
-| Setting        | Value                                                     |
-| -------------- | --------------------------------------------------------- |
-| command        | `node`                                                    |
-| args           | `["/absolute/path/to/pixelbridge-mcp/dist/mcp-entry.js"]` |
-| env (optional) | `PIXELBRIDGE_PROJECT_ROOT` to pin the project directory   |
+| Setting        | Value                                                   |
+| -------------- | ------------------------------------------------------- |
+| command        | `node`                                                  |
+| args           | `["/absolute/path/to/PixelBridge/dist/mcp-entry.js"]`   |
+| env (optional) | `PIXELBRIDGE_PROJECT_ROOT` to pin the project directory |
 
 ### Clients that use an `mcpServers` JSON file
 
@@ -58,7 +58,7 @@ on the client; a project-level file is usually `.mcp.json`, `.cursor/mcp.json` o
   "mcpServers": {
     "pixelbridge": {
       "command": "node",
-      "args": ["/absolute/path/to/pixelbridge-mcp/dist/mcp-entry.js"]
+      "args": ["/absolute/path/to/PixelBridge/dist/mcp-entry.js"]
     }
   }
 }
@@ -74,7 +74,7 @@ on the client; a project-level file is usually `.mcp.json`, `.cursor/mcp.json` o
     "pixelbridge": {
       "type": "stdio",
       "command": "node",
-      "args": ["/absolute/path/to/pixelbridge-mcp/dist/mcp-entry.js"]
+      "args": ["/absolute/path/to/PixelBridge/dist/mcp-entry.js"]
     }
   }
 }
@@ -85,7 +85,7 @@ on the client; a project-level file is usually `.mcp.json`, `.cursor/mcp.json` o
 Use the client's add command with the same command and args, for example:
 
 ```bash
-<client> mcp add pixelbridge -- node /absolute/path/to/pixelbridge-mcp/dist/mcp-entry.js
+<client> mcp add pixelbridge -- node /absolute/path/to/PixelBridge/dist/mcp-entry.js
 ```
 
 Copies of these snippets are in [`examples/mcp-clients/`](../examples/mcp-clients).

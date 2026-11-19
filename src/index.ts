@@ -1,0 +1,10 @@
+export { PixelBridge, VERSION, assetSummary } from './services/pixelbridge.js';
+export { AppContext, type AppContextOptions } from './services/context.js';
+export { createServer } from './mcp/server.js';
+export { runMcpServer } from './mcp/run.js';
+export { PixelBridgeError, type ErrorCode } from './core/errors.js';
+export { configSchema, loadConfig, type PixelBridgeConfig } from './core/config.js';
+export { modelSpecSchema, type ModelSpec, type SceneStats } from './blender/spec.js';
+export { validateForRoblox, type ValidationReport } from './blender/roblox.js';
+export type { ImageProvider, JobProvider } from './providers/types.js';
+export type { AssetRecord } from './core/registry.js';

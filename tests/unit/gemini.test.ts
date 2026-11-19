@@ -94,10 +94,11 @@ describe('GeminiImageProvider', () => {
     const body = JSON.parse(f.calls[0]!.init!.body as string) as Record<string, any>; // eslint-disable-line @typescript-eslint/no-explicit-any
     expect(body).toMatchObject({
       model: 'gemini-nano-banana-2.1',
-      response_format: { type: 'image', aspect_ratio: '2:3', image_size: '1K', mime_type: 'image/png' },
+      response_format: { type: 'image', aspect_ratio: '2:3', image_size: '1K' },
       store: false,
       generation_config: { thinking_level: 'minimal' },
     });
+    expect(body.response_format.mime_type).toBeUndefined(); // API accepts only image/jpeg here
     // 20 in × $1.5/M + 1120 image × $30/M + 200 text × $7.5/M
     expect(res.actualCostUsd).toBeCloseTo(0.03513, 5);
   });

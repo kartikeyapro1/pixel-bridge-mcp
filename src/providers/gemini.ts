@@ -2,6 +2,7 @@ import type { CostEstimate } from '../core/budget.js';
 import type { PixelBridgeConfig } from '../core/config.js';
 import { PixelBridgeError } from '../core/errors.js';
 import { downloadToBuffer, httpRequest, type FetchLike } from '../core/http.js';
+import { sniffImage } from '../util/png.js';
 import {
   GEMINI_ASPECT_RATIOS,
   GEMINI_IMAGE_PRICING,
@@ -357,7 +358,8 @@ export class GeminiImageProvider implements ImageProvider {
     const pricing = this.pricing(p.model);
     const responseFormat: Record<string, unknown> = {
       type: 'image',
-      mime_type: p.outputFormat === 'jpeg' ? 'image/jpeg' : 'image/png',
+      // The API only accepts 'image/jpeg' here; otherwise omit it and keep whatever it returns.
+      ...(p.outputFormat === 'jpeg' ? { mime_type: 'image/jpeg' } : {}),
       image_size: chooseTier(p.size, p.quality, pricing.tiers),
     };
     const aspect = p.size === 'auto' ? null : nearestAspect(p.size);
@@ -399,9 +401,16 @@ export class GeminiImageProvider implements ImageProvider {
       );
     }
     const last = blocks[blocks.length - 1]!;
-    const format: ImageFormat = last.mime_type === 'image/jpeg' ? 'jpeg' : 'png';
+    const data = Buffer.from(last.data!, 'base64');
+    const sniffed = sniffImage(data);
+    const format: ImageFormat =
+      sniffed === 'jpeg' || sniffed === 'png' || sniffed === 'webp'
+        ? sniffed
+        : last.mime_type === 'image/jpeg'
+          ? 'jpeg'
+          : 'png';
     return {
-      images: [{ data: Buffer.from(last.data!, 'base64'), format }],
+      images: [{ data, format }],
       actualCostUsd: usageCost(
         interaction.usage,
         {

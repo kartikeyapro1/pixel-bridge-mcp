@@ -1,0 +1,30 @@
+{
+  "assetsDir": "assets",
+  "budget": {
+    "projectLimitUsd": 5,
+    "providerLimitsUsd": { "openai": 3, "fal": 3 },
+    "approvalThresholdUsd": 0.25,
+    "maxCostPerCallUsd": 2,
+    "maxGenerationsPerDay": 100,
+    "maxInFlight": 3
+  },
+  "providers": {
+    "openai": { "defaultModel": "gpt-image-2", "timeoutMs": 240000, "maxRetries": 2 },
+    "fal": {
+      "defaultVideoModel": "fal-ai/kling-video/v2.5-turbo/pro/image-to-video",
+      "models": {
+        "fal-ai/kling-video/v2.5-turbo/pro/image-to-video": {
+          "kind": "video",
+          "pricing": { "perSecondUsd": 0.07 },
+          "fields": { "prompt": "prompt", "image": "image_url", "duration": "duration" },
+          "durationFormat": "string",
+          "allowedDurations": [5, 10]
+        }
+      }
+    },
+    "mock": { "enabled": false }
+  },
+  "blender": { "timeoutMs": 300000 },
+  "pipeline": { "maxModelVersions": 12 },
+  "roblox": { "maxTrianglesPerMesh": 20000, "maxTextureSize": 1024, "metersPerStud": 0.28 }
+}

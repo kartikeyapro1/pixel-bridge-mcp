@@ -1,0 +1,61 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    name: Node ${{ matrix.node }} / ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        node: [22, 24]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+          cache: npm
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm run lint
+      - run: npm run format:check
+      # Build first: the stdio and cross-process budget tests use dist/.
+      - run: npm run build
+      # No paid APIs are ever called. Blender tests are reported as skipped when Blender is absent.
+      - run: npm test
+        env:
+          PIXELBRIDGE_SKIP_BLENDER: '1'
+      - run: npm pack --dry-run
+      - run: npm audit --omit=dev --audit-level=high
+
+  blender:
+    name: Blender integration (Linux, snap Blender)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - name: Install Blender
+        run: |
+          sudo snap install blender --classic
+          blender --version
+      - run: npm ci
+      - run: npm run build
+      - name: Blender tests (must run, not skip)
+        run: |
+          npx vitest run tests/integration/blender.test.ts --reporter=verbose 2>&1 | tee blender.log
+          if grep -q "SKIPPED" blender.log; then echo "Blender tests were skipped"; exit 1; fi

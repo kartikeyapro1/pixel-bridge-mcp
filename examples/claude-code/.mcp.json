@@ -1,0 +1,13 @@
+{
+  "mcpServers": {
+    "pixelbridge": {
+      "command": "node",
+      "args": ["/absolute/path/to/pixelbridge/dist/mcp-entry.js"],
+      "env": {
+        "PIXELBRIDGE_PROJECT_ROOT": "/absolute/path/to/your/game",
+        "OPENAI_API_KEY": "${OPENAI_API_KEY}",
+        "FAL_KEY": "${FAL_KEY}"
+      }
+    }
+  }
+}

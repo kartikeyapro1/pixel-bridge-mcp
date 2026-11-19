@@ -53,7 +53,7 @@ cost, another API key and another place to hide failure. The cap gives a hard st
 
 **Alternatives.** JSON files with lock files; `better-sqlite3`; an external database.
 
-**Why.** Concurrent agents (or two Claude Code sessions) must not both pass a budget check. SQLite
+**Why.** Concurrent agents (or two agent sessions in the same project) must not both pass a budget check. SQLite
 gives cross-process locking with no native build step (`node:sqlite` ships with Node ≥22.15).
 Human-readable `manifest.json` files are regenerated per collection for browsing and git diffs.
 
@@ -98,3 +98,21 @@ shapes.
 imports `bpy` and runs inside Blender, so it follows Blender's GPL licensing. It is executed as a
 separate process and communicates through JSON files, so the GPL does not extend to the
 TypeScript code. Runtime dependencies (MCP SDK: Apache-2.0, zod: MIT) are compatible.
+
+## ADR-9: API keys in the OS credential store
+
+**Decision.** `pixelbridge key set` stores keys in the platform credential store (Windows DPAPI
+via .NET `ProtectedData`, macOS Keychain, Linux Secret Service). At startup the server takes each key
+from the environment if set, otherwise from the store. Keys are never accepted in config files.
+
+**Alternatives.** User-level environment variables (plaintext, inherited by every process the user
+starts); a `.env` file (easy to commit); putting the key in the MCP client configuration (stored
+in plaintext there).
+
+**Why.** The key can be set once and rotated with one command, without editing client
+configuration, and it is encrypted at rest. Environment variables still win, so CI and containers
+work unchanged.
+
+**Trade-off.** On Windows, decrypting adds about 1.4 s to server startup, because it runs one
+PowerShell process. Any process running as the same user can request the key from the store, the
+same boundary as other saved credentials.

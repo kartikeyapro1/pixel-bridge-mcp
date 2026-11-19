@@ -16,13 +16,17 @@ for example, `generate_3d_from_image` is not listed when only the Gemini API is 
 
 ## Gemini API (default)
 
-- Key: `GEMINI_API_KEY` (`GOOGLE_API_KEY` is accepted as an alias). Paid tier required: the
-  image and video models have no free tier.
+- Key: stored with `pixelbridge key set gemini`, or `GEMINI_API_KEY` / `GOOGLE_API_KEY` in the
+  environment (see [credentials.md](credentials.md)). Paid tier required: the image and video models
+  have no free tier.
 - Endpoint: `POST https://generativelanguage.googleapis.com/v1beta/interactions` (Interactions
   API) with headers `x-goog-api-key` and `Api-Revision` (`providers.gemini.apiRevision`, default
   `2026-05-20`). The key is only ever sent to `generativelanguage.googleapis.com`.
 
 ### Images
+
+**Verified live (2026-11-19):** a 1K image with `gemini-nano-banana-2.1` cost $0.0357 against a
+$0.0411 estimate.
 
 - Default model `gemini-nano-banana-2.1` (Nano Banana 2.1). Also priced:
   `gemini-3.1-flash-image`, `gemini-3.1-flash-lite-image`, `gemini-3-pro-image`.
@@ -33,7 +37,8 @@ for example, `generate_3d_from_image` is not listed when only the Gemini API is 
   means at least 2K. Example: `1024x1536` → 2:3 at 1K = 848×1264 px.
 - Edits: up to 14 reference images (Nano Banana 2.1: up to 10 objects + 4 characters). Edits are
   prompt-driven; masks are not supported.
-- Not supported: transparent backgrounds, webp output, more than one image per call.
+- Not supported: transparent backgrounds, masks, choosing the output format (images come back as
+  JPEG), more than one image per call.
 - Thinking is billed; PixelBridge sets `thinking_level: "minimal"` by default
   (`providers.gemini.imageThinkingLevel`).
 - Image interactions are sent with `store: false`, so Google does not keep them for later turns.
@@ -51,6 +56,8 @@ Estimates add prompt and reference-image input tokens (~1,120 tokens per image) 
 Nano Banana 2.1 at 1K is estimated at $0.13 (about $0.10 of that is image output).
 
 ### Video
+
+**Not yet verified live.** The request and response handling follows Google's documentation.
 
 - Default model `gemini-omni-1.2-flash` (Gemini Omni Flash), the model Google recommends for
   video. (Veo 3.1 preview models were shut down on 2026-10-22.)

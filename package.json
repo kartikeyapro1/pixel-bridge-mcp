@@ -1,7 +1,7 @@
 {
   "name": "pixelbridge-mcp",
-  "version": "0.1.0",
-  "description": "Local-first MCP server and CLI that lets AI coding agents generate images, video and Blender 3D assets with budgets, caching and an auditable asset registry.",
+  "version": "0.2.0",
+  "description": "MCP server and CLI that lets AI coding agents generate images and video with one Gemini API key and build 3D models in local Blender, with budgets, caching and an auditable asset registry.",
   "keywords": [
     "mcp",
     "model-context-protocol",
@@ -10,7 +10,8 @@
     "asset-pipeline",
     "image-generation",
     "video-generation",
-    "claude-code"
+    "gemini",
+    "ai-agents"
   ],
   "license": "Apache-2.0",
   "type": "module",
@@ -46,7 +47,8 @@
     "format:check": "prettier --check .",
     "test": "vitest run",
     "check": "npm run typecheck && npm run lint && npm run format:check && npm test && npm run build",
-    "prepublishOnly": "npm run check"
+    "prepublishOnly": "npm run check",
+    "docs:tools": "npm run build && node scripts/gen-tool-docs.mjs"
   },
   "dependencies": {
     "@modelcontextprotocol/server": "2.4.0",

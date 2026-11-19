@@ -22,12 +22,13 @@ schemas; such changes are listed in CHANGELOG.md.
 
 ## Before the first public release
 
-- [ ] Live-verify Gemini images (generate + edit with references) with one 1K request (~$0.04).
+- [x] Live-verify Gemini image generation (done 2026-11-19: 1K image, actual $0.0357).
+- [ ] Live-verify Gemini image editing with references.
 - [ ] Live-verify Gemini video with a 3 s 360p clip (~$0.09): background mode, polling, download,
       usage-based cost. Record whether background mode is accepted.
 - [ ] Optionally live-verify the OpenAI image adapter.
 - [ ] Test Blender 4.2 LTS (declared minimum) or raise the minimum.
-- [ ] Run the MCP server from a real Claude Code session end to end.
+- [ ] Run the MCP server from at least two different MCP clients end to end.
 - [ ] Decide the public repository name and npm package name (`pixelbridge-mcp` is free on GitHub
       under the owner account at time of writing; check npm).
 - [ ] Enable GitHub private vulnerability reporting.

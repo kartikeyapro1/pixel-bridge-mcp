@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "pixelbridge": {
+      "command": "node",
+      "args": ["/absolute/path/to/pixelbridge-mcp/dist/mcp-entry.js"],
+      "env": {
+        "PIXELBRIDGE_PROJECT_ROOT": "/absolute/path/to/your/project"
+      }
+    }
+  }
+}

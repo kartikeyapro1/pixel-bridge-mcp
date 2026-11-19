@@ -1,322 +1,188 @@
 # PixelBridge
 
-A local-first MCP server and CLI that lets AI coding agents (Claude Code, Cursor and other MCP
-clients) produce game assets: reference images, videos and Blender 3D models. Generation runs
-under spending limits, and every file is cached, versioned, recorded with how it was made, and
-checked against the target engine before you import it.
+An MCP server and CLI that lets AI coding agents generate **images and videos** with one Google
+Gemini API key, and build **3D models** in a local copy of Blender. It runs on your machine,
+stores everything in your project, and enforces spending limits so an agent cannot run up a bill.
 
-**One API key is enough.** A Google Gemini API key covers image generation, image editing and
-video. 3D models are built locally in Blender, which needs no key.
-
-```
-"Make an original chibi cat character for my Roblox game: reference views, a Blender model,
- previews, and a glb I can import."
-
-  generate_character_turnaround  →  references/pip-front.png, pip-side.png, pip-back.png
-  build_blender_model            →  blender/pip-spec-v001.json, pip-v001.blend (+ reference planes)
-  render_model_previews          →  renders/v001/front.png … (returned to the agent as images)
-  build_blender_model (revised)  →  pip-v002.blend   (agent compared renders with references)
-  export_3d_asset                →  exports/pip-v002.glb  + Roblox pre-import report
+```text
+You:   "Make a pixel-art health potion icon and a 5-second clip of a slime bouncing."
+Agent: generate_image  → assets/props/potion/references/potion-image.jpg      ($0.036)
+       generate_video  → job submitted … get_job → assets/videos/slime/…mp4  (approval asked first)
 ```
 
-> **Status: 0.1.0, pre-release.** Repository is private. Tested on Windows 11 with Node 24 and
-> Blender 5.3. Image and video providers are tested against their HTTP APIs with mocks; no live
-> paid generation has been run yet. See [Known limitations](#known-limitations).
+- **One key.** A Gemini API key covers image generation, image editing and video. 3D work uses
+  Blender on your machine and needs no key.
+- **Cost control.** Every paid call is estimated first. A project budget, a per-call ceiling and a
+  daily limit are enforced locally, even across several agents running at once. Repeat requests are
+  served from cache for free.
+- **Keys stay out of files.** Store your key once in the operating system's credential store
+  (Windows DPAPI, macOS Keychain, Linux Secret Service). The server reads it at startup.
+- **Everything is recorded.** Each file is registered with its prompt, model, cost, hash and the
+  assets it was derived from. A `manifest.json` per collection keeps that browsable.
+- **3D without code execution.** Models are described as JSON (primitives, modifiers, materials)
+  and built in headless Blender, then previewed, exported to glb/fbx/obj and checked against
+  Roblox import limits. The agent never runs Python inside Blender.
 
-## Why
+> **Status: 0.2.0, pre-release.** Image generation is verified against the live Gemini API.
+> Video generation is implemented and tested against Google's documented API, but not yet run
+> live. Tested on Windows 11 with Node 24 and Blender 5.3.
 
-Asking an agent to "call an image API" or "run Blender" is easy, and many MCP servers already do
-that. The harder part is letting an agent run the pipeline **unattended**:
+## Quick start
 
-- **It must not spend money unpredictably.** Each paid call is quoted first. Calls above a
-  threshold need explicit approval, and a project budget is enforced in a transaction, so
-  concurrent agents cannot overspend it. Identical requests are served from cache.
-- **It must be reproducible.** Every file is registered with its prompt, model, parameters,
-  references, hash, cost and parent version. Blender models are JSON specs, not opaque scripts.
-- **It must be safe.** No tool executes agent-supplied code. All reads and writes are confined to
-  the project directory (symlink escapes are checked). Credentials never appear in output.
-- **It must fit the target engine.** Exports are re-imported in a clean Blender scene and checked
-  against a Roblox profile (triangle cap, size in studs, materials, UVs, rig).
-
-See [docs/product-assessment.md](docs/product-assessment.md) for the competitive landscape and
-[docs/decisions.md](docs/decisions.md) for the design decisions.
-
-## What works today
-
-| Capability                                                                                                                                    | Status                                                                |
-| --------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------- |
-| Blender: build model from spec, reference planes, previews (Workbench/EEVEE/Cycles), inspect, export glb/gltf/fbx/obj, re-import verification | Working, tested against Blender 5.3                                   |
-| Roblox pre-import validation                                                                                                                  | Working (conservative, configurable limits)                           |
-| Asset registry, manifests, versioning, request cache                                                                                          | Working                                                               |
-| Budget ledger, approvals, concurrency limits (cross-process)                                                                                  | Working, tested with 8 concurrent processes                           |
-| Images via Gemini API (Nano Banana 2.1): generate, edit with up to 14 references, character turnarounds                                       | Implemented; tested with mocked HTTP; **not yet run with a live key** |
-| Video via Gemini API (Omni Flash): background jobs, poll, download, cancel, restart-safe                                                      | Implemented; tested with mocked HTTP; **not yet run with a live key** |
-| Optional OpenAI image provider (adds transparent backgrounds and masks)                                                                       | Implemented; tested with mocked HTTP                                  |
-| MCP server (17 tools, stdio) and CLI                                                                                                          | Working                                                               |
-
-## Requirements
-
-- Node.js ≥ 22.15 (uses the built-in `node:sqlite`)
-- Blender ≥ 4.2 for 3D tools (verified on 5.3.0; 4.2–5.2 accepted but untested)
-- For images and video: `GEMINI_API_KEY` from [Google AI Studio](https://aistudio.google.com) (paid tier;
-  these models have no free tier). Not needed for the Blender tools.
-
-## Install
-
-The package is not yet published to npm. From a clone:
+**1. Install** (Node.js 22.15 or newer):
 
 ```bash
-git clone <repo-url> pixelbridge && cd pixelbridge
+git clone https://github.com/<you>/pixelbridge-mcp.git
+cd pixelbridge-mcp
 npm ci
 npm run build
 ```
 
-## Connect to Claude Code
+**2. Store your Gemini API key.** Create one at [Google AI Studio](https://aistudio.google.com).
+Billing must be enabled, because the image and video models have no free tier. Then:
 
-Add the server to the project you want assets in. `.mcp.json` in that project:
+```bash
+node dist/cli.js key set gemini      # paste the key; input is hidden
+```
+
+This encrypts the key in your OS credential store and checks it with a free request. To replace
+it later, run the same command again. See [docs/credentials.md](docs/credentials.md).
+
+**3. Connect your MCP client.** Add this server to your client's MCP configuration (most clients
+use this `mcpServers` format; see [docs/getting-started.md](docs/getting-started.md) for
+per-client steps):
 
 ```json
 {
   "mcpServers": {
     "pixelbridge": {
       "command": "node",
-      "args": ["/absolute/path/to/pixelbridge/dist/mcp-entry.js"],
-      "env": {
-        "PIXELBRIDGE_PROJECT_ROOT": "/absolute/path/to/your/game",
-        "GEMINI_API_KEY": "${GEMINI_API_KEY}"
-      }
+      "args": ["/absolute/path/to/pixelbridge-mcp/dist/mcp-entry.js"]
     }
   }
 }
 ```
 
-Or with the CLI:
+The server works in the directory the client starts it in (your project). To pin a directory,
+set `PIXELBRIDGE_PROJECT_ROOT` in the server's `env`.
+
+**4. Ask your agent** to "call get_status", then to generate something. Files appear under
+`assets/` in your project.
+
+**No key yet?** Set `PIXELBRIDGE_MOCK=1` in the server's environment. The mock provider writes
+placeholder images and charges a fake $0.01 per call, so you can try the whole workflow offline.
+
+## What it costs
+
+You pay Google directly. PixelBridge itself is free and runs no service. With the defaults:
+
+| Asset                                | Model             | Typical cost           |
+| ------------------------------------ | ----------------- | ---------------------- |
+| Image (1K)                           | Nano Banana 2.1   | ~$0.036 (measured)     |
+| Three-view character reference sheet | Nano Banana 2.1   | ~$0.11–0.13            |
+| 8 s video, 360p / 720p / 1080p       | Gemini Omni Flash | ~$0.20 / $0.57 / $0.85 |
+| Blender model, previews, exports     | local Blender     | free                   |
+
+Calls estimated above **$0.25** need explicit approval. Spending stops at the project budget
+(**$5** by default). Change both in `pixelbridge.config.json`
+([docs/configuration.md](docs/configuration.md)). Local limits cannot cap your Google bill in every
+failure case, so also set a budget alert in Google Cloud billing.
+
+## Tools
+
+| Tool                                    | What it does                                                | Cost  |
+| --------------------------------------- | ----------------------------------------------------------- | ----- |
+| `get_status`                            | Providers, key source, Blender, budget, missing setup       | free  |
+| `get_budget`                            | Spending summary and recent ledger entries                  | free  |
+| `generate_image`                        | Text-to-image                                               | paid  |
+| `edit_image`                            | Edit an image or generate from up to 14 reference images    | paid  |
+| `generate_character_turnaround`         | Front view, then side/back/¾ views conditioned on it        | paid  |
+| `generate_video`                        | 3–15 s video, 360p–4k, up to 6 reference images (async job) | paid  |
+| `get_job`, `list_jobs`, `cancel_job`    | Track and download video jobs (survive restarts)            | free  |
+| `list_assets`, `get_asset`              | Browse generated files and their metadata                   | free  |
+| `get_model_spec_guide`                  | How to describe a 3D model as JSON                          | free  |
+| `build_blender_model`                   | Build a new model version in Blender from a JSON spec       | local |
+| `render_model_previews`                 | Render previews and return them (with references) as images | local |
+| `inspect_3d_asset`, `validate_3d_asset` | Triangle counts, bounds, issues; Roblox checks              | local |
+| `export_3d_asset`                       | Export glb/gltf/fbx/obj, verified by re-import              | local |
+
+Full argument reference: [docs/tools.md](docs/tools.md) (generated from the code).
+
+## Command line
+
+The same features are available without an agent:
 
 ```bash
-claude mcp add pixelbridge --scope project \
-  -e PIXELBRIDGE_PROJECT_ROOT="$PWD" -e GEMINI_API_KEY="$GEMINI_API_KEY" \
-  -- node /absolute/path/to/pixelbridge/dist/mcp-entry.js
+node dist/cli.js status
+node dist/cli.js image "pixel-art health potion icon" -c potion
+node dist/cli.js video "a green slime bouncing" -c slime --duration 5 --resolution 360p --yes
+node dist/cli.js job <jobId>
+node dist/cli.js build examples/specs/cartoon-cat.json -c pip
+node dist/cli.js export <blendAssetId> --formats glb,fbx
 ```
 
-Keep keys in your shell environment, not in committed files. Then, in your project:
+Paid commands print the estimate and stop if it is above the approval threshold; add `--yes` to
+approve. See [docs/cli.md](docs/cli.md).
 
-```bash
-node /path/to/pixelbridge/dist/cli.js init     # writes pixelbridge.config.json
-echo ".pixelbridge/" >> .gitignore              # local database, temp files, thumbnails
-```
+## What gets written
 
-Ask the agent to call `get_status` first; it reports what is configured and what is missing.
-
-**Try it without any API key:** set `PIXELBRIDGE_MOCK=1` (or `providers.mock.enabled: true`).
-The mock provider produces placeholder PNGs and fake job outputs at a fake $0.01 per call, so the
-whole pipeline, including budgets and Blender, can be exercised offline. Mock outputs are
-labelled `mock: true` in metadata.
-
-## MCP tools
-
-| Tool                                 | Purpose                                                                         | Cost  |
-| ------------------------------------ | ------------------------------------------------------------------------------- | ----- |
-| `get_status`                         | Providers, capabilities, Blender detection, budget, missing setup               | free  |
-| `get_budget`                         | Spend summary and recent ledger entries                                         | free  |
-| `generate_image`                     | Text-to-image                                                                   | paid  |
-| `edit_image`                         | Edit / reference-conditioned generation (up to 16 images, optional mask)        | paid  |
-| `generate_character_turnaround`      | Front view, then side/back/¾ conditioned on the front; quoted as one total      | paid  |
-| `list_assets`, `get_asset`           | Registry queries; `get_asset` can return the image                              | free  |
-| `generate_video`                     | Async text/image-to-video job (3–15 s, up to 6 reference images)                | paid  |
-| `get_job`, `list_jobs`, `cancel_job` | Poll, download, cancel (state survives restarts)                                | free  |
-| `get_model_spec_guide`               | Schema and conventions for model specs                                          | free  |
-| `build_blender_model`                | Spec → new `.blend` version (+ optional reference planes), stats, Roblox report | local |
-| `render_model_previews`              | Renders + reference thumbnails returned as images                               | local |
-| `inspect_3d_asset`                   | Triangles, materials, bounds, UVs, non-manifold edges, armatures                | local |
-| `validate_3d_asset`                  | Engine profile check (Roblox)                                                   | local |
-| `export_3d_asset`                    | glb/gltf/fbx/obj export, verified by re-import                                  | local |
-
-Every paid tool accepts `dryRun` (quote only), `bypassCache`, and `confirmCostUsd`.
-
-### The approval protocol
-
-```
-agent → generate_video {...}
-      ← error APPROVAL_REQUIRED: estimated $0.57 (8 s video at 720p),
-        hint: "Show the user this estimate ... call again with confirmCostUsd: 0.574"
-agent → (asks the user) → generate_video {..., confirmCostUsd: 0.574}
-```
-
-The threshold relies on the agent asking a human. The **hard guarantees** are
-`budget.projectLimitUsd`, `budget.maxCostPerCallUsd`, `budget.maxGenerationsPerDay` and
-`budget.maxInFlight`, which no tool argument can override.
-
-## CLI
-
-The CLI uses the same services as the MCP server.
-
-```bash
-pixelbridge status
-pixelbridge image "isometric wooden crate, game prop" -c crate --quality low --dry-run
-pixelbridge image "isometric wooden crate, game prop" -c crate --quality low --yes
-pixelbridge turnaround "an original orange chibi cat" -c pip --style "soft cartoon" --yes
-pixelbridge video "the cat waves and blinks" -c pip --image ast_… --duration 5 --resolution 360p --yes
-pixelbridge build examples/specs/cartoon-cat.json -c pip --ref front=ast_… --ref side=ast_…
-pixelbridge render ast_… --views front,side,three_quarter
-pixelbridge export ast_… --formats glb,fbx
-pixelbridge validate assets/characters/pip/exports/pip-v001.glb
-pixelbridge assets -c pip | pixelbridge budget | pixelbridge jobs
-```
-
-(`pixelbridge` = `node dist/cli.js` until the package is published.) Paid commands print an
-`APPROVAL_REQUIRED` error with the estimate unless `--yes` is passed. Exit code 3 means approval
-needed.
-
-## Project layout produced
-
-```
-your-game/
-├── pixelbridge.config.json
-├── .pixelbridge/                 # SQLite registry/ledger/jobs, temp files, thumbnails (gitignore)
+```text
+your-project/
+├── pixelbridge.config.json       optional settings
+├── .pixelbridge/                 local database (registry, budget, jobs), temp files - add to .gitignore
 └── assets/
     ├── characters/pip/
-    │   ├── manifest.json         # every asset: path, sha256, prompt, model, cost, lineage
-    │   ├── references/           # generated images
-    │   ├── blender/              # pip-spec-v001.json, pip-v001.blend, v002, …
-    │   ├── renders/v001/         # front.png, side.png, three_quarter.png
-    │   └── exports/              # pip-v002.glb, pip-v002.fbx
-    ├── props/ environments/ textures/ ui/
-    └── videos/<collection>/videos/
+    │   ├── manifest.json         every asset: path, sha256, prompt, model, cost, lineage
+    │   ├── references/           generated images
+    │   ├── blender/              pip-spec-v001.json, pip-v001.blend, v002 …
+    │   ├── renders/v001/         front.png, side.png, three_quarter.png
+    │   └── exports/              pip-v002.glb
+    └── videos/slime/videos/      slime-video.mp4
 ```
 
-Filenames are deterministic, never overwritten (`-2`, `-3` … on collision), and written
-atomically (temp file + rename).
+Files are never overwritten (`-2`, `-3` … are added on collision) and are written atomically.
 
-## Configuration
+## Limitations
 
-`pixelbridge.config.json` in the project root. Every field is optional. Key settings:
+- Gemini images: no transparent backgrounds, no masks, one image per call. Output is JPEG.
+- Character reference views are visual references; their consistency is not guaranteed.
+- Generated video is a motion reference, not game-ready animation.
+- 3D models are built from primitives. That suits props, blockouts and stylised characters; it
+  cannot reproduce detailed sculpted models. Image-to-3D reconstruction is not included.
+- The Roblox checks are conservative pre-import checks, not a guarantee that Studio accepts the
+  file.
+- Approval above the threshold is enforced through a tool argument the agent supplies after asking
+  you. The hard limits (budget, per-call ceiling, daily count) cannot be bypassed by the agent.
 
-```json
-{
-  "budget": {
-    "projectLimitUsd": 5,
-    "approvalThresholdUsd": 0.25,
-    "maxCostPerCallUsd": 2,
-    "maxGenerationsPerDay": 100,
-    "maxInFlight": 3
-  },
-  "providers": {
-    "gemini": {
-      "imageModel": "gemini-nano-banana-2.1",
-      "videoModel": "gemini-omni-1.2-flash",
-      "defaultVideoSeconds": 8
-    }
-  },
-  "pipeline": { "maxModelVersions": 12 },
-  "roblox": { "maxTrianglesPerMesh": 20000, "maxTextureSize": 1024 }
-}
-```
+## Documentation
 
-See [docs/providers.md](docs/providers.md) and
-[examples/pixelbridge.config.example.json](examples/pixelbridge.config.example.json).
-
-| Environment variable       | Purpose                                                          |
-| -------------------------- | ---------------------------------------------------------------- |
-| `GEMINI_API_KEY`           | Images and video (Gemini API). `GOOGLE_API_KEY` is accepted too. |
-| `OPENAI_API_KEY`           | Optional second image provider                                   |
-| `BLENDER_PATH`             | Explicit Blender executable (otherwise auto-detected)            |
-| `PIXELBRIDGE_PROJECT_ROOT` | Project directory (default: current directory)                   |
-| `PIXELBRIDGE_MOCK=1`       | Enable offline mock providers                                    |
-
-## Costs
-
-You pay Google directly with your own key; PixelBridge has no service of its own. Estimates come
-from Google's published prices (transcribed 2026-11-19). Typical costs with the defaults:
-
-| Asset                                     | Estimate               |
-| ----------------------------------------- | ---------------------- |
-| One reference image (Nano Banana 2.1, 1K) | ~$0.04                 |
-| Three-view character turnaround (1K)      | ~$0.13                 |
-| 8 s video at 360p / 720p / 1080p          | ~$0.20 / $0.57 / $0.85 |
-| Blender model, previews, exports          | free (local)           |
-
-Actual cost is computed from the token usage in each response. Unknown models are refused, not
-guessed.
-
-Local limits cannot cap provider billing in every failure mode (for example, a request that timed
-out but was processed is counted as "unknown" and still billed). **Also set a budget alert in
-Google Cloud billing.**
-
-## Security model
-
-- **No code execution tools.** Blender runs only the bundled script with
-  `--factory-startup --disable-autoexec`, which disables user add-ons and scripts embedded in
-  `.blend` files. Models are data (validated JSON). This is a trust boundary, not a sandbox:
-  Blender runs with your user's permissions.
-- **Filesystem confinement.** Agent-supplied paths must resolve inside the project root after
-  symlinks are resolved. Inputs are type-checked by magic bytes and size-capped.
-- **Credentials** are read from the environment only, sent only to their provider's API host
-  (the Gemini key only to `generativelanguage.googleapis.com`), and redacted from logs,
-  errors and tool output.
-- **Local transport only** (stdio). There is no network listener.
-- **Nothing is published.** No tool uploads to Roblox or anywhere else.
-
-Details: [docs/security.md](docs/security.md). Report vulnerabilities via [SECURITY.md](SECURITY.md).
-
-## Roblox
-
-`validate_3d_asset` and every export include a report with:
-
-- per-mesh triangle cap (default 20,000)
-- size in studs (0.28 m/stud)
-- part-size limit
-- material count per mesh
-- UV presence
-- non-manifold geometry
-- armature presence
-
-Static models import as meshes. PixelBridge does not build R15 rigs. Import into Studio yourself
-via the 3D Importer; see [docs/roblox.md](docs/roblox.md).
-
-## Known limitations
-
-- Primitive-based modelling suits blockouts, props and stylised low-poly characters. It cannot
-  reproduce detailed sculpted characters. Automatic image-to-3D reconstruction is not included,
-  because no single-key provider offers it.
-- Turnaround views are visual references, not measured orthographic drawings. Consistency between
-  views is not guaranteed.
-- Generated video is a motion reference, not skeletal animation.
-- No live calls to the Gemini API (or OpenAI) have been made from this repository yet; request
-  and response handling is verified against Google's documented shapes only. In particular,
-  Google does not document whether Gemini Omni video supports background mode. PixelBridge falls
-  back to a synchronous call if it does not, and the tool then blocks for minutes.
-- Gemini images: no transparent backgrounds, no masks, one image per call. The optional OpenAI
-  provider covers the first two.
-- Workbench previews render colours darker than the material hex values; use `engine: "eevee"`
-  for closer colour.
-- Each Blender operation starts a new Blender process (~2.5 s overhead).
-- The Roblox limits are conservative defaults from developer guidance, not an official spec check.
-
-## Troubleshooting
-
-| Symptom                                  | Fix                                                                                                                                   |
-| ---------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
-| `PROVIDER_NOT_CONFIGURED`                | The key is not in the **MCP server's** environment. Put it in the `env` block of `.mcp.json` or export it before starting the client. |
-| `BLENDER_NOT_FOUND`                      | Set `BLENDER_PATH` or `blender.path` to the executable (`blender.exe` on Windows).                                                    |
-| `PRICE_UNKNOWN`                          | The model has no known price; use a model listed in docs/providers.md.                                                                |
-| `APPROVAL_REQUIRED`                      | Expected for expensive calls; approve and pass `confirmCostUsd`.                                                                      |
-| `BUDGET_EXCEEDED` with nothing generated | Check `get_budget` for "unknown" entries (timeouts). Raise `projectLimitUsd` after checking the provider dashboard.                   |
-| `REFINEMENT_LIMIT`                       | The agent hit `pipeline.maxModelVersions`; review the renders before raising it.                                                      |
-| Server shows no tools                    | Run `node dist/mcp-entry.js` in a terminal; startup errors are printed to stderr.                                                     |
+| Topic                             |                                                                                      |
+| --------------------------------- | ------------------------------------------------------------------------------------ |
+| Setup for each MCP client         | [docs/getting-started.md](docs/getting-started.md)                                   |
+| API key storage                   | [docs/credentials.md](docs/credentials.md)                                           |
+| Configuration reference           | [docs/configuration.md](docs/configuration.md)                                       |
+| Tool reference                    | [docs/tools.md](docs/tools.md)                                                       |
+| CLI reference                     | [docs/cli.md](docs/cli.md)                                                           |
+| Providers, models and prices      | [docs/providers.md](docs/providers.md)                                               |
+| Describing 3D models              | [docs/model-spec.md](docs/model-spec.md)                                             |
+| Roblox workflow                   | [docs/roblox.md](docs/roblox.md)                                                     |
+| Security model                    | [docs/security.md](docs/security.md)                                                 |
+| Troubleshooting                   | [docs/troubleshooting.md](docs/troubleshooting.md)                                   |
+| Architecture and design decisions | [docs/architecture.md](docs/architecture.md), [docs/decisions.md](docs/decisions.md) |
+| Related projects                  | [docs/related-projects.md](docs/related-projects.md)                                 |
 
 ## Development
 
 ```bash
 npm run check        # typecheck, lint, format check, tests, build
-npm test             # unit + MCP tests; Blender tests run if Blender is found
-PIXELBRIDGE_SKIP_BLENDER=1 npm test
+npm test             # Blender integration tests run when Blender is installed
 ```
 
-Blender integration tests are **skipped, not passed**, when Blender is unavailable, and the
-reason is printed. CI never calls paid APIs. See [CONTRIBUTING.md](CONTRIBUTING.md) and
-[docs/architecture.md](docs/architecture.md).
+Tests never call paid APIs. See [CONTRIBUTING.md](CONTRIBUTING.md) and
+[docs/releasing.md](docs/releasing.md).
 
 ## License
 
-Apache-2.0. `blender/pixelbridge_bpy.py` is GPL-3.0-or-later because it runs inside Blender (see
-[NOTICE](NOTICE)). Generated assets are subject to the terms of the provider that generated them.
+Apache-2.0, except `blender/pixelbridge_bpy.py` (GPL-3.0-or-later, because it runs inside
+Blender); see [NOTICE](NOTICE). Generated content is subject to the terms of the provider that
+produced it.

@@ -15,6 +15,6 @@ labels: bug
 - PixelBridge version:
 - OS / Node version:
 - Blender version (if relevant):
-- MCP client (Claude Code, Cursor, …):
+- MCP client and version:
 
 **Output of `pixelbridge status`** (redact anything private)

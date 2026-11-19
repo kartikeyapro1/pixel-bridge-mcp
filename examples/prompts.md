@@ -1,4 +1,4 @@
-# Example prompts for Claude Code
+# Example prompts
 
 These assume PixelBridge is connected (see the README).
 

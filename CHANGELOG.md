@@ -5,6 +5,21 @@ All notable changes are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-11-19
+
+### Added
+
+- `pixelbridge key set|status|test|delete`: API keys stored in the OS credential store (Windows
+  DPAPI, macOS Keychain, Linux Secret Service) and read by the server at startup.
+- Documentation: getting started, credentials, configuration, CLI and generated tool reference,
+  troubleshooting, related projects.
+- `get_status` reports where each key came from (never its value).
+
+### Fixed
+
+- Gemini image requests: the API accepts only `image/jpeg` for `response_format.mime_type`; the
+  format is now left to the API and detected from the returned bytes. Verified against the live API.
+
 ### Changed
 
 - One API key: the Gemini API (`GEMINI_API_KEY`) is now the default provider for images (Nano

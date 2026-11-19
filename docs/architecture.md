@@ -1,7 +1,7 @@
 # Architecture
 
 ```
- MCP client (Claude Code, Cursor, …)         Human / scripts / CI
+ MCP client (any stdio client)         Human / scripts / CI
           │ stdio (JSON-RPC)                          │
           ▼                                           ▼
    src/mcp/server.ts  (17-18 tools)             src/cli.ts

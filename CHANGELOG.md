@@ -5,6 +5,24 @@ All notable changes are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-11-19
+
+### Added
+
+- `outputDir` and `fileName` on `generate_image`, `edit_image` and `generate_video` (CLI: `--out`,
+  `--name`) to save straight into an app's folders. Paths stay confined to the project; files are
+  never overwritten.
+- Transparent backgrounds with providers that cannot output them (Gemini): generated on a flat
+  backdrop and cut out locally into a PNG, with optional `trim`.
+- `remove_background` tool and `pixelbridge cutout` command: free, local background removal for any
+  PNG or JPEG in the project.
+- Manifests record each asset's `projectPath`.
+
+### Changed
+
+- Explicit file names keep their case (`DumbbellIcon.png`); generated default names are unchanged.
+- New runtime dependencies: `jpeg-js` (BSD-3-Clause) and `pngjs` (MIT), both pure JavaScript.
+
 ## [0.2.0] - 2026-11-19
 
 ### Added

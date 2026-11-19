@@ -130,7 +130,7 @@ export class AssetRegistry {
    */
   writeNewFile(dir: string, stem: string, ext: string, data: Uint8Array | string): string {
     mkdirSync(dir, { recursive: true });
-    const safeStem = slugify(stem);
+    const safeStem = safeFileStem(stem);
     const safeExt = ext.replace(/[^a-z0-9]/gi, '').toLowerCase() || 'bin';
     for (let i = 1; i < 10_000; i++) {
       const name = i === 1 ? `${safeStem}.${safeExt}` : `${safeStem}-${i}.${safeExt}`;
@@ -351,6 +351,7 @@ export class AssetRegistry {
             path.posix.join(this.assetsDir.split(path.sep).join('/'), category, collection),
             a.path,
           ),
+          projectPath: a.path,
           sha256: a.sha256,
           bytes: a.bytes,
           provider: a.provider,
@@ -434,4 +435,20 @@ export function guessMime(file: string): string {
       '.json': 'application/json',
     }[ext] ?? 'application/octet-stream'
   );
+}
+
+/**
+ * A single path segment safe on every OS: keeps letters (any case), digits, "." "_" "-",
+ * replaces everything else (including path separators) with "-", and strips leading dots.
+ */
+export function safeFileStem(input: string, fallback = 'asset'): string {
+  const stem = input
+    .normalize('NFKD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^A-Za-z0-9._-]+/g, '-')
+    .replace(/\.{2,}/g, '.')
+    .replace(/^[.-]+|[.-]+$/g, '')
+    .slice(0, 80);
+  const reserved = /^(con|prn|aux|nul|com\d|lpt\d)$/i;
+  return stem && !reserved.test(stem) ? stem : fallback;
 }

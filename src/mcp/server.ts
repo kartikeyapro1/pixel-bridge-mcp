@@ -63,7 +63,32 @@ const imageSize = z
   .regex(/^(auto|\d{2,4}x\d{2,4})$/)
   .optional()
   .describe('"1024x1024" (default), "1536x1024", "1024x1536", "auto", or custom WxH on supported models.');
-const background = z.enum(['transparent', 'opaque', 'auto']).optional();
+const background = z
+  .enum(['transparent', 'opaque', 'auto'])
+  .optional()
+  .describe(
+    '"transparent" returns a PNG with real transparency. Providers that cannot do it natively (Gemini) generate on a flat backdrop and the subject is cut out locally.',
+  );
+const outputDir = z
+  .string()
+  .min(1)
+  .max(260)
+  .optional()
+  .describe(
+    'Project-relative folder to save into, e.g. "src/assets/icons" or "public/images". Default: assets/<category>/<collection>/.',
+  );
+const fileName = z
+  .string()
+  .min(1)
+  .max(80)
+  .optional()
+  .describe(
+    'File name without extension, e.g. "dumbbell-icon". Never overwrites: "-2" is added if it exists.',
+  );
+const trim = z
+  .boolean()
+  .optional()
+  .describe('With a transparent background: crop to the subject (8 px padding).');
 const imageRef = z.string().min(1).describe('Asset id (ast_…) or a path inside the project.');
 
 const PAID_NOTE =
@@ -115,7 +140,7 @@ export function createServer(pb: PixelBridge): McpServer {
     'generate_image',
     {
       title: 'Generate image',
-      description: `Text-to-image. Saves to assets/<category>/<collection>/references/ and registers metadata. Identical requests are served from cache at no cost. ${PAID_NOTE}`,
+      description: `Text-to-image for any use: app icons, UI art, illustrations, textures, references. Saves into the project (outputDir, or assets/<category>/<collection>/references/) and records metadata. Identical requests are served from cache at no cost. ${PAID_NOTE}`,
       inputSchema: z.object({
         prompt: z.string().min(1).max(32_000),
         collection,
@@ -127,6 +152,9 @@ export function createServer(pb: PixelBridge): McpServer {
         quality: imageQuality,
         background,
         outputFormat: z.enum(['png', 'webp', 'jpeg']).optional(),
+        outputDir,
+        fileName,
+        trim,
         n: z.number().int().min(1).max(4).optional(),
         bypassCache,
         dryRun,
@@ -159,6 +187,9 @@ export function createServer(pb: PixelBridge): McpServer {
         quality: imageQuality,
         background,
         outputFormat: z.enum(['png', 'webp', 'jpeg']).optional(),
+        outputDir,
+        fileName,
+        trim,
         inputFidelity: z
           .enum(['high', 'low'])
           .optional()
@@ -228,6 +259,47 @@ export function createServer(pb: PixelBridge): McpServer {
             ...(v.error ? { error: toPixelBridgeError(v.error).toJSON() } : {}),
           })),
         });
+      }),
+  );
+
+  server.registerTool(
+    'remove_background',
+    {
+      title: 'Remove background (local, free)',
+      description:
+        'Makes the flat background of an existing image transparent and saves a PNG. Works best on icons, sprites and objects on a plain solid background; not suited to photos or busy backgrounds. Runs locally, no API call.',
+      inputSchema: z.object({
+        image: imageRef,
+        outputDir,
+        fileName,
+        trim,
+        padding: z
+          .number()
+          .int()
+          .min(0)
+          .max(512)
+          .optional()
+          .describe('Padding in pixels when trimming. Default 8.'),
+        tolerance: z
+          .number()
+          .min(1)
+          .max(200)
+          .optional()
+          .describe('How far a colour may differ from the background and still be removed. Default 40.'),
+        softness: z.number().min(1).max(200).optional().describe('Width of the soft edge. Default 40.'),
+        removeEnclosed: z
+          .boolean()
+          .optional()
+          .describe('Also clear background-coloured areas not connected to the edge (e.g. holes).'),
+        collection: collection.optional(),
+        category,
+      }),
+      annotations: { readOnlyHint: false, destructiveHint: false, openWorldHint: false },
+    },
+    async (args) =>
+      guard(async () => {
+        const res = await pb.images.removeBackground(args);
+        return ok({ ...res, asset: assetSummary(res.asset) });
       }),
   );
 
@@ -305,6 +377,8 @@ export function createServer(pb: PixelBridge): McpServer {
         resolution: z.enum(['360p', '720p', '1080p', '4k']).optional().describe('Default 720p.'),
         aspectRatio: z.enum(['16:9', '9:16']).optional().describe('Default 16:9.'),
         model: z.string().optional().describe('See get_status for available video models.'),
+        outputDir,
+        fileName,
         provider: z.string().optional(),
         bypassCache,
         dryRun,

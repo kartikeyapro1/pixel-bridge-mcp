@@ -49,6 +49,7 @@ describe('MCP server', () => {
         'inspect_3d_asset',
         'list_assets',
         'list_jobs',
+        'remove_background',
         'render_model_previews',
         'validate_3d_asset',
       ].sort(),

@@ -2,8 +2,8 @@
 
 # MCP tool reference
 
-18 tools. `generate_3d_from_image` is only registered when a configured provider supports image-to-3D
-(the Gemini API does not), so a typical installation exposes 17.
+19 tools. `generate_3d_from_image` is only registered when a configured provider supports image-to-3D
+(the Gemini API does not), so a typical installation exposes 18.
 
 | Tool                                                              | Read-only | Summary                               |
 | ----------------------------------------------------------------- | --------- | ------------------------------------- |
@@ -12,6 +12,7 @@
 | [`generate_image`](#generate_image)                               | no        | Generate image                        |
 | [`edit_image`](#edit_image)                                       | no        | Edit image / generate from references |
 | [`generate_character_turnaround`](#generate_character_turnaround) | no        | Character reference turnaround        |
+| [`remove_background`](#remove_background)                         | no        | Remove background (local, free)       |
 | [`list_assets`](#list_assets)                                     | yes       | List assets                           |
 | [`get_asset`](#get_asset)                                         | yes       | Get asset metadata                    |
 | [`generate_video`](#generate_video)                               | no        | Generate video (async)                |
@@ -42,48 +43,54 @@ Spend summary (committed, reserved, unknown-outcome) against limits, plus recent
 
 ## generate_image
 
-Text-to-image. Saves to assets/<category>/<collection>/references/ and registers metadata. Identical requests are served from cache at no cost. Billable: uses the configured provider with the user's API key. Estimates cost first; respects project budget. Use dryRun to quote.
+Text-to-image for any use: app icons, UI art, illustrations, textures, references. Saves into the project (outputDir, or assets/<category>/<collection>/references/) and records metadata. Identical requests are served from cache at no cost. Billable: uses the configured provider with the user's API key. Estimates cost first; respects project budget. Use dryRun to quote.
 
-| Argument         | Type            | Required         | Description                                                                                               |
-| ---------------- | --------------- | ---------------- | --------------------------------------------------------------------------------------------------------- |
-| `prompt`         | string          | yes              |                                                                                                           |
-| `collection`     | string          | yes              | Asset collection name, e.g. "pip-the-cat". Files go to assets/<category>/<collection>/.                   |
-| `category`       | `"characters"`  | `"environments"` | `"props"`                                                                                                 | `"textures"` | `"videos"` | `"ui"`          | `"misc"` |     | Asset category directory (default depends on tool). |
-| `role`           | string          |                  | Short label used in the filename, e.g. "concept".                                                         |
-| `model`          | string          |                  |                                                                                                           |
-| `provider`       | string          |                  | Image provider id (see get_status). Default: openai.                                                      |
-| `size`           | string          |                  | "1024x1024" (default), "1536x1024", "1024x1536", "auto", or custom WxH on supported models.               |
-| `quality`        | `"low"`         | `"medium"`       | `"high"`                                                                                                  | `"auto"`     |            | Default medium. |
-| `background`     | `"transparent"` | `"opaque"`       | `"auto"`                                                                                                  |              |            |
-| `outputFormat`   | `"png"`         | `"webp"`         | `"jpeg"`                                                                                                  |              |            |
-| `n`              | integer         |                  |                                                                                                           |
-| `bypassCache`    | boolean         |                  | Generate even if an identical request is cached.                                                          |
-| `dryRun`         | boolean         |                  | Return the cost estimate without generating anything.                                                     |
-| `confirmCostUsd` | number          |                  | Required when the estimate exceeds the approval threshold. Only pass after the user approved this amount. |
+| Argument         | Type            | Required         | Description                                                                                                                 |
+| ---------------- | --------------- | ---------------- | --------------------------------------------------------------------------------------------------------------------------- |
+| `prompt`         | string          | yes              |                                                                                                                             |
+| `collection`     | string          | yes              | Asset collection name, e.g. "pip-the-cat". Files go to assets/<category>/<collection>/.                                     |
+| `category`       | `"characters"`  | `"environments"` | `"props"`                                                                                                                   | `"textures"` | `"videos"`                                                                                                                                                        | `"ui"`          | `"misc"` |     | Asset category directory (default depends on tool). |
+| `role`           | string          |                  | Short label used in the filename, e.g. "concept".                                                                           |
+| `model`          | string          |                  |                                                                                                                             |
+| `provider`       | string          |                  | Image provider id (see get_status). Default: openai.                                                                        |
+| `size`           | string          |                  | "1024x1024" (default), "1536x1024", "1024x1536", "auto", or custom WxH on supported models.                                 |
+| `quality`        | `"low"`         | `"medium"`       | `"high"`                                                                                                                    | `"auto"`     |                                                                                                                                                                   | Default medium. |
+| `background`     | `"transparent"` | `"opaque"`       | `"auto"`                                                                                                                    |              | "transparent" returns a PNG with real transparency. Providers that cannot do it natively (Gemini) generate on a flat backdrop and the subject is cut out locally. |
+| `outputFormat`   | `"png"`         | `"webp"`         | `"jpeg"`                                                                                                                    |              |                                                                                                                                                                   |
+| `outputDir`      | string          |                  | Project-relative folder to save into, e.g. "src/assets/icons" or "public/images". Default: assets/<category>/<collection>/. |
+| `fileName`       | string          |                  | File name without extension, e.g. "dumbbell-icon". Never overwrites: "-2" is added if it exists.                            |
+| `trim`           | boolean         |                  | With a transparent background: crop to the subject (8 px padding).                                                          |
+| `n`              | integer         |                  |                                                                                                                             |
+| `bypassCache`    | boolean         |                  | Generate even if an identical request is cached.                                                                            |
+| `dryRun`         | boolean         |                  | Return the cost estimate without generating anything.                                                                       |
+| `confirmCostUsd` | number          |                  | Required when the estimate exceeds the approval threshold. Only pass after the user approved this amount.                   |
 
 ## edit_image
 
 Image edit or reference-conditioned generation: the first image is edited; additional images act as references (Gemini: up to 14; OpenAI: up to 16). Optional mask (OpenAI only). Billable: uses the configured provider with the user's API key. Estimates cost first; respects project budget. Use dryRun to quote.
 
-| Argument         | Type            | Required         | Description                                                                                               |
-| ---------------- | --------------- | ---------------- | --------------------------------------------------------------------------------------------------------- |
-| `prompt`         | string          | yes              |                                                                                                           |
-| `images`         | string[]        | yes              |                                                                                                           |
-| `mask`           | string          |                  | Asset id (ast_…) or a path inside the project.                                                            |
-| `collection`     | string          | yes              | Asset collection name, e.g. "pip-the-cat". Files go to assets/<category>/<collection>/.                   |
-| `category`       | `"characters"`  | `"environments"` | `"props"`                                                                                                 | `"textures"`                                         | `"videos"` | `"ui"`          | `"misc"` |     | Asset category directory (default depends on tool). |
-| `role`           | string          |                  |                                                                                                           |
-| `model`          | string          |                  |                                                                                                           |
-| `provider`       | string          |                  |                                                                                                           |
-| `size`           | string          |                  | "1024x1024" (default), "1536x1024", "1024x1536", "auto", or custom WxH on supported models.               |
-| `quality`        | `"low"`         | `"medium"`       | `"high"`                                                                                                  | `"auto"`                                             |            | Default medium. |
-| `background`     | `"transparent"` | `"opaque"`       | `"auto"`                                                                                                  |                                                      |            |
-| `outputFormat`   | `"png"`         | `"webp"`         | `"jpeg"`                                                                                                  |                                                      |            |
-| `inputFidelity`  | `"high"`        | `"low"`          |                                                                                                           | Only on models that support it (e.g. gpt-image-1.5). |
-| `n`              | integer         |                  |                                                                                                           |
-| `bypassCache`    | boolean         |                  | Generate even if an identical request is cached.                                                          |
-| `dryRun`         | boolean         |                  | Return the cost estimate without generating anything.                                                     |
-| `confirmCostUsd` | number          |                  | Required when the estimate exceeds the approval threshold. Only pass after the user approved this amount. |
+| Argument         | Type            | Required         | Description                                                                                                                 |
+| ---------------- | --------------- | ---------------- | --------------------------------------------------------------------------------------------------------------------------- |
+| `prompt`         | string          | yes              |                                                                                                                             |
+| `images`         | string[]        | yes              |                                                                                                                             |
+| `mask`           | string          |                  | Asset id (ast_…) or a path inside the project.                                                                              |
+| `collection`     | string          | yes              | Asset collection name, e.g. "pip-the-cat". Files go to assets/<category>/<collection>/.                                     |
+| `category`       | `"characters"`  | `"environments"` | `"props"`                                                                                                                   | `"textures"`                                         | `"videos"`                                                                                                                                                        | `"ui"`          | `"misc"` |     | Asset category directory (default depends on tool). |
+| `role`           | string          |                  |                                                                                                                             |
+| `model`          | string          |                  |                                                                                                                             |
+| `provider`       | string          |                  |                                                                                                                             |
+| `size`           | string          |                  | "1024x1024" (default), "1536x1024", "1024x1536", "auto", or custom WxH on supported models.                                 |
+| `quality`        | `"low"`         | `"medium"`       | `"high"`                                                                                                                    | `"auto"`                                             |                                                                                                                                                                   | Default medium. |
+| `background`     | `"transparent"` | `"opaque"`       | `"auto"`                                                                                                                    |                                                      | "transparent" returns a PNG with real transparency. Providers that cannot do it natively (Gemini) generate on a flat backdrop and the subject is cut out locally. |
+| `outputFormat`   | `"png"`         | `"webp"`         | `"jpeg"`                                                                                                                    |                                                      |                                                                                                                                                                   |
+| `outputDir`      | string          |                  | Project-relative folder to save into, e.g. "src/assets/icons" or "public/images". Default: assets/<category>/<collection>/. |
+| `fileName`       | string          |                  | File name without extension, e.g. "dumbbell-icon". Never overwrites: "-2" is added if it exists.                            |
+| `trim`           | boolean         |                  | With a transparent background: crop to the subject (8 px padding).                                                          |
+| `inputFidelity`  | `"high"`        | `"low"`          |                                                                                                                             | Only on models that support it (e.g. gpt-image-1.5). |
+| `n`              | integer         |                  |                                                                                                                             |
+| `bypassCache`    | boolean         |                  | Generate even if an identical request is cached.                                                                            |
+| `dryRun`         | boolean         |                  | Return the cost estimate without generating anything.                                                                       |
+| `confirmCostUsd` | number          |                  | Required when the estimate exceeds the approval threshold. Only pass after the user approved this amount.                   |
 
 ## generate_character_turnaround
 
@@ -94,16 +101,33 @@ Generates character reference views for 3D modelling: a front view (from text, o
 | `collection`     | string          | yes        | Asset collection name, e.g. "pip-the-cat". Files go to assets/<category>/<collection>/. |
 | `description`    | string          | yes        | What the character looks like. Describe an original character.                          |
 | `style`          | string          |            | e.g. "stylised low-poly cartoon, soft colours".                                         |
-| `views`          | `"front"`       | `"side"`   | `"back"`                                                                                | `"three_quarter"`[] |     | Default front, side, back. |
+| `views`          | `"front"`       | `"side"`   | `"back"`                                                                                | `"three_quarter"`[] |                                                                                                                                                                   | Default front, side, back. |
 | `conceptImage`   | string          |            | Approved concept to stay consistent with.                                               |
 | `model`          | string          |            |                                                                                         |
 | `provider`       | string          |            |                                                                                         |
-| `quality`        | `"low"`         | `"medium"` | `"high"`                                                                                | `"auto"`            |     | Default medium.            |
+| `quality`        | `"low"`         | `"medium"` | `"high"`                                                                                | `"auto"`            |                                                                                                                                                                   | Default medium.            |
 | `size`           | string          |            | Default 1024x1536 (portrait, full body).                                                |
-| `background`     | `"transparent"` | `"opaque"` | `"auto"`                                                                                |                     |     |
+| `background`     | `"transparent"` | `"opaque"` | `"auto"`                                                                                |                     | "transparent" returns a PNG with real transparency. Providers that cannot do it natively (Gemini) generate on a flat backdrop and the subject is cut out locally. |
 | `bypassCache`    | boolean         |            | Generate even if an identical request is cached.                                        |
 | `dryRun`         | boolean         |            | Return the cost estimate without generating anything.                                   |
 | `confirmCostUsd` | number          |            | Approval for the TOTAL sheet estimate.                                                  |
+
+## remove_background
+
+Makes the flat background of an existing image transparent and saves a PNG. Works best on icons, sprites and objects on a plain solid background; not suited to photos or busy backgrounds. Runs locally, no API call.
+
+| Argument         | Type           | Required         | Description                                                                                                                 |
+| ---------------- | -------------- | ---------------- | --------------------------------------------------------------------------------------------------------------------------- |
+| `image`          | string         | yes              | Asset id (ast_…) or a path inside the project.                                                                              |
+| `outputDir`      | string         |                  | Project-relative folder to save into, e.g. "src/assets/icons" or "public/images". Default: assets/<category>/<collection>/. |
+| `fileName`       | string         |                  | File name without extension, e.g. "dumbbell-icon". Never overwrites: "-2" is added if it exists.                            |
+| `trim`           | boolean        |                  | With a transparent background: crop to the subject (8 px padding).                                                          |
+| `padding`        | integer        |                  | Padding in pixels when trimming. Default 8.                                                                                 |
+| `tolerance`      | number         |                  | How far a colour may differ from the background and still be removed. Default 40.                                           |
+| `softness`       | number         |                  | Width of the soft edge. Default 40.                                                                                         |
+| `removeEnclosed` | boolean        |                  | Also clear background-coloured areas not connected to the edge (e.g. holes).                                                |
+| `collection`     | string         |                  | Asset collection name, e.g. "pip-the-cat". Files go to assets/<category>/<collection>/.                                     |
+| `category`       | `"characters"` | `"environments"` | `"props"`                                                                                                                   | `"textures"` | `"videos"` | `"ui"` | `"misc"` |     | Asset category directory (default depends on tool). |
 
 ## list_assets
 
@@ -130,20 +154,22 @@ Full metadata for one asset: prompt, parameters, provider, cost, hash, lineage. 
 
 Submits a text- or image-to-video job (default: Gemini Omni Flash, 3-15 s, 360p/720p/1080p/4k, 16:9 or 9:16, up to 6 reference images) and returns a job id immediately; poll get_job. Job state persists across server restarts. Generated video is a motion reference, not a skeletal animation. Billable: uses the configured provider with the user's API key. Estimates cost first; respects project budget. Use dryRun to quote.
 
-| Argument          | Type           | Required         | Description                                                                                               |
-| ----------------- | -------------- | ---------------- | --------------------------------------------------------------------------------------------------------- |
-| `prompt`          | string         | yes              |                                                                                                           |
-| `collection`      | string         | yes              | Asset collection name, e.g. "pip-the-cat". Files go to assets/<category>/<collection>/.                   |
-| `category`        | `"characters"` | `"environments"` | `"props"`                                                                                                 | `"textures"`  | `"videos"` | `"ui"`        | `"misc"` |     | Asset category directory (default depends on tool). |
-| `images`          | string[]       |                  | Reference or start-frame images (character consistency, image-to-video).                                  |
-| `durationSeconds` | integer        |                  | Default 8.                                                                                                |
-| `resolution`      | `"360p"`       | `"720p"`         | `"1080p"`                                                                                                 | `"4k"`        |            | Default 720p. |
-| `aspectRatio`     | `"16:9"`       | `"9:16"`         |                                                                                                           | Default 16:9. |
-| `model`           | string         |                  | See get_status for available video models.                                                                |
-| `provider`        | string         |                  |                                                                                                           |
-| `bypassCache`     | boolean        |                  | Generate even if an identical request is cached.                                                          |
-| `dryRun`          | boolean        |                  | Return the cost estimate without generating anything.                                                     |
-| `confirmCostUsd`  | number         |                  | Required when the estimate exceeds the approval threshold. Only pass after the user approved this amount. |
+| Argument          | Type           | Required         | Description                                                                                                                 |
+| ----------------- | -------------- | ---------------- | --------------------------------------------------------------------------------------------------------------------------- |
+| `prompt`          | string         | yes              |                                                                                                                             |
+| `collection`      | string         | yes              | Asset collection name, e.g. "pip-the-cat". Files go to assets/<category>/<collection>/.                                     |
+| `category`        | `"characters"` | `"environments"` | `"props"`                                                                                                                   | `"textures"`  | `"videos"` | `"ui"`        | `"misc"` |     | Asset category directory (default depends on tool). |
+| `images`          | string[]       |                  | Reference or start-frame images (character consistency, image-to-video).                                                    |
+| `durationSeconds` | integer        |                  | Default 8.                                                                                                                  |
+| `resolution`      | `"360p"`       | `"720p"`         | `"1080p"`                                                                                                                   | `"4k"`        |            | Default 720p. |
+| `aspectRatio`     | `"16:9"`       | `"9:16"`         |                                                                                                                             | Default 16:9. |
+| `model`           | string         |                  | See get_status for available video models.                                                                                  |
+| `outputDir`       | string         |                  | Project-relative folder to save into, e.g. "src/assets/icons" or "public/images". Default: assets/<category>/<collection>/. |
+| `fileName`        | string         |                  | File name without extension, e.g. "dumbbell-icon". Never overwrites: "-2" is added if it exists.                            |
+| `provider`        | string         |                  |                                                                                                                             |
+| `bypassCache`     | boolean        |                  | Generate even if an identical request is cached.                                                                            |
+| `dryRun`          | boolean        |                  | Return the cost estimate without generating anything.                                                                       |
+| `confirmCostUsd`  | number         |                  | Required when the estimate exceeds the approval threshold. Only pass after the user approved this amount.                   |
 
 ## generate_3d_from_image
 

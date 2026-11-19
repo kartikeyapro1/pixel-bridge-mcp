@@ -17,18 +17,26 @@ current directory, or on `--project <dir>`. Add `--json` for single-line JSON ou
 
 ## Generation (paid)
 
-| Command                                                  | Options                                                                                                                                                        |
-| -------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `pixelbridge image "<prompt>" -c <collection>`           | `--quality low\|medium\|high`, `--size WxH`, `--model`, `--provider`, `--dry-run`, `--yes`                                                                     |
-| `pixelbridge turnaround "<description>" -c <collection>` | `--style`, `--views front,side,back,three_quarter`, `--quality`, `--dry-run`, `--yes`                                                                          |
-| `pixelbridge video "<prompt>" -c <collection>`           | `--image <asset\|path>` (repeatable, up to 6), `--duration 3-15`, `--resolution 360p\|720p\|1080p\|4k`, `--aspect 16:9\|9:16`, `--model`, `--dry-run`, `--yes` |
-| `pixelbridge jobs`                                       | List recent video jobs                                                                                                                                         |
-| `pixelbridge job <jobId>`                                | Poll a job; downloads the result when ready                                                                                                                    |
-| `pixelbridge cancel <jobId>`                             | Request cancellation                                                                                                                                           |
+| Command                                                  | Options                                                                                                                                                                                        |
+| -------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `pixelbridge image "<prompt>" -c <collection>`           | `--quality low\|medium\|high`, `--size WxH`, `--transparent`, `--trim`, `--out <dir>`, `--name <file>`, `--model`, `--provider`, `--dry-run`, `--yes`                                          |
+| `pixelbridge turnaround "<description>" -c <collection>` | `--style`, `--views front,side,back,three_quarter`, `--quality`, `--dry-run`, `--yes`                                                                                                          |
+| `pixelbridge video "<prompt>" -c <collection>`           | `--image <asset\|path>` (repeatable, up to 6), `--duration 3-15`, `--resolution 360p\|720p\|1080p\|4k`, `--aspect 16:9\|9:16`, `--out <dir>`, `--name <file>`, `--model`, `--dry-run`, `--yes` |
+| `pixelbridge jobs`                                       | List recent video jobs                                                                                                                                                                         |
+| `pixelbridge job <jobId>`                                | Poll a job; downloads the result when ready                                                                                                                                                    |
+| `pixelbridge cancel <jobId>`                             | Request cancellation                                                                                                                                                                           |
 
 `--dry-run` prints the estimate and does nothing else. Without `--yes`, a call estimated above the
 approval threshold stops with `APPROVAL_REQUIRED` (exit code 3) and prints the estimate. With
 `--yes` you approve that estimate. The hard limits still apply.
+
+With `--out`, `-c` is optional (the folder name is used as the collection).
+
+## Images (local, free)
+
+| Command                            | Options                                                                    |
+| ---------------------------------- | -------------------------------------------------------------------------- |
+| `pixelbridge cutout <asset\|path>` | `--out <dir>`, `--name <file>`, `--trim`, `--tolerance 1-200` (default 40) |
 
 ## Blender (local, free)
 

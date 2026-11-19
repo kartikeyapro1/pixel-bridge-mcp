@@ -26,9 +26,12 @@ Setup
   serve                        Run the MCP server over stdio (same as pixelbridge-mcp)
 
 Generation (billable; prints an estimate, add --yes to approve)
-  image <prompt> -c <collection> [--quality low|medium|high] [--size WxH] [--model m] [--dry-run] [--yes]
+  image <prompt> -c <collection> [--quality low|medium|high] [--size WxH] [--transparent [--trim]]
+        [--out <dir>] [--name <file>] [--model m] [--dry-run] [--yes]
   turnaround <description> -c <collection> [--style s] [--views front,side,back] [--dry-run] [--yes]
-  video <prompt> -c <collection> [--image ref]... [--duration 3-15] [--resolution 720p] [--aspect 16:9] [--dry-run] [--yes]
+  video <prompt> -c <collection> [--image ref]... [--duration 3-15] [--resolution 720p] [--aspect 16:9]
+        [--out <dir>] [--name <file>] [--dry-run] [--yes]
+  cutout <image> [--out <dir>] [--name <file>] [--trim] [--tolerance 40]   remove a flat background (free)
   jobs | job <jobId> | cancel <jobId>
 
 Blender (local, free)
@@ -70,6 +73,11 @@ async function main(argv: string[]): Promise<number> {
       resolution: { type: 'string' },
       engine: { type: 'string' },
       formats: { type: 'string' },
+      out: { type: 'string' },
+      name: { type: 'string' },
+      transparent: { type: 'boolean' },
+      trim: { type: 'boolean' },
+      tolerance: { type: 'string' },
       'dry-run': { type: 'boolean' },
       yes: { type: 'boolean', short: 'y' },
       help: { type: 'boolean', short: 'h' },
@@ -115,6 +123,10 @@ async function main(argv: string[]): Promise<number> {
   // In the CLI the human at the terminal approves with --yes; the estimate is the confirmed amount.
   const confirm = async (quote: () => number): Promise<number | undefined> =>
     values.yes ? quote() : undefined;
+  // With --out, the collection defaults to the output folder's name.
+  const collectionOrOut = () =>
+    values.collection ??
+    (values.out ? path.basename(path.resolve(values.out)) : need(undefined, '--collection'));
   const list = (s: string | undefined) =>
     s
       ? s
@@ -154,7 +166,11 @@ async function main(argv: string[]): Promise<number> {
       case 'image': {
         const req = {
           prompt: need(rest.join(' '), 'prompt'),
-          collection: need(values.collection, '--collection'),
+          collection: collectionOrOut(),
+          ...(values.transparent ? { background: 'transparent' as const } : {}),
+          ...(values.trim ? { trim: true } : {}),
+          ...(values.out ? { outputDir: values.out } : {}),
+          ...(values.name ? { fileName: values.name } : {}),
           ...(values.quality ? { quality: values.quality as 'low' | 'medium' | 'high' } : {}),
           ...(values.size ? { size: values.size } : {}),
           ...(values.model ? { model: values.model } : {}),
@@ -192,7 +208,9 @@ async function main(argv: string[]): Promise<number> {
         const req = {
           kind: 'video' as const,
           prompt: need(rest.join(' '), 'prompt'),
-          collection: need(values.collection, '--collection'),
+          collection: collectionOrOut(),
+          ...(values.out ? { outputDir: values.out } : {}),
+          ...(values.name ? { fileName: values.name } : {}),
           ...(values.image?.length ? { images: values.image } : {}),
           ...(values.duration ? { durationSeconds: Number(values.duration) } : {}),
           ...(values.resolution ? { resolution: values.resolution } : {}),
@@ -209,6 +227,18 @@ async function main(argv: string[]): Promise<number> {
           }),
           json,
         );
+        return 0;
+      }
+      case 'cutout': {
+        const res = await pb.images.removeBackground({
+          image: need(rest[0], 'image (asset id or path)'),
+          ...(values.out ? { outputDir: values.out } : {}),
+          ...(values.name ? { fileName: values.name } : {}),
+          ...(values.trim ? { trim: true } : {}),
+          ...(values.tolerance ? { tolerance: Number(values.tolerance) } : {}),
+          ...(values.collection ? { collection: values.collection } : {}),
+        });
+        out({ ...res, asset: assetSummary(res.asset) }, json);
         return 0;
       }
       case 'jobs':

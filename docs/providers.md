@@ -37,8 +37,12 @@ $0.0411 estimate.
   means at least 2K. Example: `1024x1536` → 2:3 at 1K = 848×1264 px.
 - Edits: up to 14 reference images (Nano Banana 2.1: up to 10 objects + 4 characters). Edits are
   prompt-driven; masks are not supported.
-- Not supported: transparent backgrounds, masks, choosing the output format (images come back as
-  JPEG), more than one image per call.
+- Not supported natively: transparent backgrounds, masks, choosing the output format (images come
+  back as JPEG), more than one image per call.
+- `background: "transparent"` still works: PixelBridge asks for a flat magenta backdrop, then removes
+  it locally (border colour estimate, flood fill from the edges, soft edges with colour
+  decontamination) and saves a PNG. The flat-background original is kept as the parent asset. If
+  the backdrop is not flat enough, the original is returned with a warning.
 - Thinking is billed; PixelBridge sets `thinking_level: "minimal"` by default
   (`providers.gemini.imageThinkingLevel`).
 - Image interactions are sent with `store: false`, so Google does not keep them for later turns.

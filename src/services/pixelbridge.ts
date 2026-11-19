@@ -64,7 +64,7 @@ export class PixelBridge {
   }
 }
 
-export const VERSION = '0.2.0';
+export const VERSION = '0.3.0';
 
 /** Compact asset view for agent-facing output. */
 export function assetSummary(a: AssetRecord) {

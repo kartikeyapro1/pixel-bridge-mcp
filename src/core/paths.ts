@@ -81,7 +81,7 @@ export class ProjectPaths {
 export function slugify(input: string, fallback = 'asset'): string {
   const slug = input
     .normalize('NFKD')
-    .replace(/[̀-ͯ]/g, '')
+    .replace(/[\u0300-\u036f]/g, '')
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, '-')
     .replace(/^-+|-+$/g, '')

@@ -3,6 +3,7 @@ import type { CostEstimate } from '../core/budget.js';
 import { immediate, nowIso } from '../core/db.js';
 import { PixelBridgeError, toPixelBridgeError } from '../core/errors.js';
 import { requestFingerprint } from '../core/hashing.js';
+import { slugify } from '../core/paths.js';
 import type { AssetRecord, Category } from '../core/registry.js';
 import type { JobKind, JobProvider, ProviderJobState } from '../providers/types.js';
 import type { AppContext } from './context.js';
@@ -50,6 +51,10 @@ export interface SubmitJobRequest {
   model?: string;
   resolution?: string;
   aspectRatio?: string;
+  /** Project-relative directory for the downloaded result. */
+  outputDir?: string;
+  /** File name without extension for the downloaded result. */
+  fileName?: string;
   bypassCache?: boolean;
   dryRun?: boolean;
   confirmCostUsd?: number;
@@ -79,6 +84,8 @@ export class JobService {
       ...(r.aspectRatio ? { aspectRatio: r.aspectRatio } : {}),
     };
     provider.validate(params);
+    // Validate the destination before spending anything.
+    if (r.outputDir) this.ctx.paths.resolve(r.outputDir, 'output directory');
     const estimate = provider.estimate(params);
     const fingerprint = requestFingerprint({
       provider: provider.id,
@@ -144,6 +151,8 @@ export class JobService {
           durationSeconds: r.durationSeconds,
           resolution: r.resolution,
           aspectRatio: r.aspectRatio,
+          ...(r.outputDir ? { outputDir: r.outputDir } : {}),
+          ...(r.fileName ? { fileName: r.fileName } : {}),
           fingerprint,
         }),
         JSON.stringify(images.map((i) => i.assetId).filter((x): x is string => !!x)),
@@ -230,10 +239,15 @@ export class JobService {
             ? ['mp4', 'webm', 'mov'].includes(f.ext)
             : !['png', 'jpg', 'jpeg', 'webp'].includes(f.ext);
         const kind = isPrimary ? (job.kind === 'video' ? 'video' : 'model') : 'thumbnail';
-        const dir = this.ctx.registry.dirFor(category, job.collection, kind);
+        const outputDir = typeof job.params?.outputDir === 'string' ? job.params.outputDir : undefined;
+        const fileName = typeof job.params?.fileName === 'string' ? job.params.fileName : undefined;
+        const dir =
+          outputDir && isPrimary
+            ? this.ctx.paths.resolve(outputDir, 'output directory')
+            : this.ctx.registry.dirFor(category, job.collection, kind);
         const file = this.ctx.registry.writeNewFile(
           dir,
-          `${job.collection}-${job.kind}${i ? `-${i}` : ''}`,
+          `${fileName && isPrimary ? fileName.replace(/[.](mp4|webm|mov)$/i, '') : `${slugify(job.collection)}-${job.kind}`}${i ? `-${i}` : ''}`,
           f.ext,
           data,
         );

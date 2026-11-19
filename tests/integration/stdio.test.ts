@@ -30,7 +30,7 @@ describe.skipIf(!existsSync(entry))('stdio server (requires `npm run build`)', (
     try {
       await client.connect(transport);
       const { tools } = await client.listTools();
-      expect(tools.length).toBe(18);
+      expect(tools.length).toBe(19);
       const res = (await client.callTool({ name: 'get_status', arguments: {} })) as {
         content: { type: string; text: string }[];
       };

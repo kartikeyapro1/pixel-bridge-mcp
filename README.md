@@ -1,7 +1,8 @@
 # PixelBridge
 
 An MCP server and CLI that lets AI coding agents generate **images and videos** with one Google
-Gemini API key, and build **3D models** in a local copy of Blender. It runs on your machine,
+Gemini API key (app icons, UI art, illustrations, game assets, video clips), and build **3D models**
+in a local copy of Blender. It runs on your machine,
 stores everything in your project, and enforces spending limits so an agent cannot run up a bill.
 
 ```text
@@ -12,6 +13,9 @@ Agent: generate_image  → assets/props/potion/references/potion-image.jpg      
 
 - **One key.** A Gemini API key covers image generation, image editing and video. 3D work uses
   Blender on your machine and needs no key.
+- **Use it in any project.** Save straight into your app's folders (`outputDir`, `fileName`) and get
+  transparent PNGs for icons and sprites. Gemini can't output transparency, so the subject is cut out
+  locally from a flat backdrop; a free `remove_background` tool does the same for any image.
 - **Cost control.** Every paid call is estimated first. A project budget, a per-call ceiling and a
   daily limit are enforced locally, even across several agents running at once. Repeat requests are
   served from cache for free.
@@ -23,7 +27,7 @@ Agent: generate_image  → assets/props/potion/references/potion-image.jpg      
   and built in headless Blender, then previewed, exported to glb/fbx/obj and checked against
   Roblox import limits. The agent never runs Python inside Blender.
 
-> **Status: 0.2.0, pre-release.** Image generation is verified against the live Gemini API.
+> **Status: 0.3.0, pre-release.** Image generation is verified against the live Gemini API.
 > Video generation is implemented and tested against Google's documented API, but not yet run
 > live. Tested on Windows 11 with Node 24 and Blender 5.3.
 
@@ -90,23 +94,36 @@ failure case, so also set a budget alert in Google Cloud billing.
 
 ## Tools
 
-| Tool                                    | What it does                                                | Cost  |
-| --------------------------------------- | ----------------------------------------------------------- | ----- |
-| `get_status`                            | Providers, key source, Blender, budget, missing setup       | free  |
-| `get_budget`                            | Spending summary and recent ledger entries                  | free  |
-| `generate_image`                        | Text-to-image                                               | paid  |
-| `edit_image`                            | Edit an image or generate from up to 14 reference images    | paid  |
-| `generate_character_turnaround`         | Front view, then side/back/¾ views conditioned on it        | paid  |
-| `generate_video`                        | 3–15 s video, 360p–4k, up to 6 reference images (async job) | paid  |
-| `get_job`, `list_jobs`, `cancel_job`    | Track and download video jobs (survive restarts)            | free  |
-| `list_assets`, `get_asset`              | Browse generated files and their metadata                   | free  |
-| `get_model_spec_guide`                  | How to describe a 3D model as JSON                          | free  |
-| `build_blender_model`                   | Build a new model version in Blender from a JSON spec       | local |
-| `render_model_previews`                 | Render previews and return them (with references) as images | local |
-| `inspect_3d_asset`, `validate_3d_asset` | Triangle counts, bounds, issues; Roblox checks              | local |
-| `export_3d_asset`                       | Export glb/gltf/fbx/obj, verified by re-import              | local |
+| Tool                                    | What it does                                                                | Cost  |
+| --------------------------------------- | --------------------------------------------------------------------------- | ----- |
+| `get_status`                            | Providers, key source, Blender, budget, missing setup                       | free  |
+| `get_budget`                            | Spending summary and recent ledger entries                                  | free  |
+| `generate_image`                        | Text-to-image; optional transparent background, output folder and file name | paid  |
+| `remove_background`                     | Make a flat background transparent, optionally crop to the subject          | free  |
+| `edit_image`                            | Edit an image or generate from up to 14 reference images                    | paid  |
+| `generate_character_turnaround`         | Front view, then side/back/¾ views conditioned on it                        | paid  |
+| `generate_video`                        | 3–15 s video, 360p–4k, up to 6 reference images (async job)                 | paid  |
+| `get_job`, `list_jobs`, `cancel_job`    | Track and download video jobs (survive restarts)                            | free  |
+| `list_assets`, `get_asset`              | Browse generated files and their metadata                                   | free  |
+| `get_model_spec_guide`                  | How to describe a 3D model as JSON                                          | free  |
+| `build_blender_model`                   | Build a new model version in Blender from a JSON spec                       | local |
+| `render_model_previews`                 | Render previews and return them (with references) as images                 | local |
+| `inspect_3d_asset`, `validate_3d_asset` | Triangle counts, bounds, issues; Roblox checks                              | local |
+| `export_3d_asset`                       | Export glb/gltf/fbx/obj, verified by re-import                              | local |
 
 Full argument reference: [docs/tools.md](docs/tools.md) (generated from the code).
+
+## Using it in an app project
+
+Run your agent in the app's repository and ask for assets where the app expects them:
+
+> Generate a flat, minimal dumbbell icon with a transparent background, trimmed, saved to
+> `src/assets/icons` as `dumbbell`.
+
+The agent calls `generate_image` with `background: "transparent"`, `trim: true`,
+`outputDir: "src/assets/icons"` and `fileName: "dumbbell"`. The PNG lands at
+`src/assets/icons/dumbbell.png`, and the flat-background original is kept under `assets/` for
+reference. Paths are confined to the project, and existing files are never overwritten.
 
 ## Command line
 
@@ -115,6 +132,8 @@ The same features are available without an agent:
 ```bash
 node dist/cli.js status
 node dist/cli.js image "pixel-art health potion icon" -c potion
+node dist/cli.js image "flat dumbbell icon" --transparent --trim --out src/assets/icons --name dumbbell
+node dist/cli.js cutout photos/logo.jpg --out public --trim
 node dist/cli.js video "a green slime bouncing" -c slime --duration 5 --resolution 360p --yes
 node dist/cli.js job <jobId>
 node dist/cli.js build examples/specs/cartoon-cat.json -c pip
@@ -144,7 +163,9 @@ Files are never overwritten (`-2`, `-3` … are added on collision) and are writ
 
 ## Limitations
 
-- Gemini images: no transparent backgrounds, no masks, one image per call. Output is JPEG.
+- Gemini images: no masks, one image per call, JPEG output. Transparency is produced by a local
+  cut-out from a flat background: very good for icons, sprites and objects, weaker on hair, smoke,
+  glass or anything that blends into the backdrop. OpenAI (optional key) supports native transparency.
 - Character reference views are visual references; their consistency is not guaranteed.
 - Generated video is a motion reference, not game-ready animation.
 - 3D models are built from primitives. That suits props, blockouts and stylised characters; it

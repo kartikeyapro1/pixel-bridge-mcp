@@ -1,0 +1,64 @@
+{
+  "name": "pixelbridge-mcp",
+  "version": "0.1.0",
+  "description": "Local-first MCP server and CLI that lets AI coding agents generate images, video and Blender 3D assets with budgets, caching and an auditable asset registry.",
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "blender",
+    "roblox",
+    "asset-pipeline",
+    "image-generation",
+    "video-generation",
+    "claude-code"
+  ],
+  "license": "Apache-2.0",
+  "type": "module",
+  "engines": {
+    "node": ">=22.15.0"
+  },
+  "bin": {
+    "pixelbridge": "dist/cli.js",
+    "pixelbridge-mcp": "dist/mcp-entry.js"
+  },
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "blender/pixelbridge_bpy.py",
+    "blender/README.md",
+    "examples",
+    "README.md",
+    "LICENSE",
+    "NOTICE"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "lint": "eslint .",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "test": "vitest run",
+    "check": "npm run typecheck && npm run lint && npm run format:check && npm test && npm run build",
+    "prepublishOnly": "npm run check"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/server": "2.4.0",
+    "zod": "^4.6.7"
+  },
+  "devDependencies": {
+    "@modelcontextprotocol/client": "2.4.0",
+    "@types/node": "^24.19.2",
+    "eslint": "^9.39.5",
+    "prettier": "^3.10.1",
+    "typescript": "^5.9.3",
+    "typescript-eslint": "^8.73.0",
+    "vitest": "^4.1.12"
+  }
+}

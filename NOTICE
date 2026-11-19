@@ -1,0 +1,13 @@
+PixelBridge
+Copyright 2026 The PixelBridge authors
+
+Licensed under the Apache License, Version 2.0 (see LICENSE).
+
+Exception: blender/pixelbridge_bpy.py is licensed under the GNU General Public License,
+version 3 or (at your option) any later version, because it imports Blender's Python API (bpy)
+and runs inside Blender. PixelBridge executes it as a separate Blender process and exchanges data
+with it only through JSON files on disk.
+
+Blender is a trademark of the Blender Foundation. Roblox is a trademark of Roblox Corporation.
+PixelBridge is not affiliated with or endorsed by Blender Foundation, Roblox Corporation,
+OpenAI, or fal.ai.

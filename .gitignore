@@ -1,0 +1,23 @@
+node_modules/
+dist/
+coverage/
+*.log
+
+# Secrets
+.env
+.env.*
+!.env.example
+
+# PixelBridge local state and generated assets
+.pixelbridge/
+/assets/
+/pixelbridge.config.json
+
+# Blender
+*.blend1
+
+# OS / editors
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/

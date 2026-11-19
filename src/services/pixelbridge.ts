@@ -30,10 +30,12 @@ export class PixelBridge {
     const setup: string[] = [];
     if (!ctx.imageProviders.has('gemini') && !ctx.imageProviders.has('openai')) {
       setup.push(
-        'Images and video: set GEMINI_API_KEY (Google AI Studio) for the MCP server process. One key covers both.',
+        'Images and video: run "pixelbridge key set gemini" (or set GEMINI_API_KEY). One key covers both.',
       );
     } else if (!ctx.jobProviders.has('gemini')) {
-      setup.push('Video: set GEMINI_API_KEY (the OpenAI key covers images only).');
+      setup.push(
+        'Video: add a Gemini key with "pixelbridge key set gemini" (the OpenAI key covers images only).',
+      );
     }
     const blender = opts.checkBlender === false ? null : await ctx.blender.detect();
     if (blender && !blender.found) setup.push(blender.message);
@@ -46,6 +48,7 @@ export class PixelBridge {
       imageProviders,
       jobProviders,
       blender,
+      credentials: ctx.credentialSources,
       budget: ctx.budget.summary(),
       setup,
     };
@@ -61,7 +64,7 @@ export class PixelBridge {
   }
 }
 
-export const VERSION = '0.1.0';
+export const VERSION = '0.2.0';
 
 /** Compact asset view for agent-facing output. */
 export function assetSummary(a: AssetRecord) {

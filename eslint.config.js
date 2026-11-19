@@ -11,7 +11,7 @@ export default tseslint.config(
     },
   },
   {
-    files: ['src/cli.ts', 'tests/**'],
+    files: ['src/cli.ts', 'tests/**', 'scripts/**'],
     rules: { 'no-console': 'off' },
   },
 );

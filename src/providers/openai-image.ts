@@ -2,6 +2,7 @@ import type { CostEstimate } from '../core/budget.js';
 import type { PixelBridgeConfig } from '../core/config.js';
 import { PixelBridgeError } from '../core/errors.js';
 import { httpRequest, type FetchLike } from '../core/http.js';
+import { registerSecret } from '../core/redact.js';
 import {
   ASSUMED_INPUT_IMAGE_TOKENS,
   baseModel,
@@ -53,7 +54,9 @@ export class OpenAIImageProvider implements ImageProvider {
     private readonly pricingOverrides: PixelBridgeConfig['imagePricingOverrides'],
     private readonly apiKey: string,
     private readonly fetchFn: FetchLike = fetch,
-  ) {}
+  ) {
+    registerSecret(apiKey);
+  }
 
   capabilities(): ImageCapabilities {
     return {

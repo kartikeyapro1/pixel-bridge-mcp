@@ -2,6 +2,7 @@ import type { CostEstimate } from '../core/budget.js';
 import type { PixelBridgeConfig } from '../core/config.js';
 import { PixelBridgeError } from '../core/errors.js';
 import { downloadToBuffer, httpRequest, type FetchLike } from '../core/http.js';
+import { registerSecret } from '../core/redact.js';
 import { sniffImage } from '../util/png.js';
 import {
   GEMINI_ASPECT_RATIOS,
@@ -71,6 +72,7 @@ class GeminiClient {
     private readonly apiKey: string,
     private readonly fetchFn: FetchLike,
   ) {
+    registerSecret(apiKey); // redact this key from every error and log, whatever its format
     const host = new URL(cfg.baseUrl).host;
     if (host !== API_HOST && !/^(localhost|127\.0\.0\.1)(:\d+)?$/.test(host)) {
       throw new PixelBridgeError('CONFIG_INVALID', `providers.gemini.baseUrl must point at ${API_HOST}.`);
@@ -643,5 +645,25 @@ export class GeminiVideoProvider implements JobProvider {
     if (status >= 200 && status < 300) return 'requested';
     if (status === 400 || status === 409) return 'too_late';
     return 'not_found';
+  }
+}
+
+/** Check a key with a free request (list models). Never generates anything. */
+export async function testGeminiKey(
+  cfg: GeminiConfig,
+  apiKey: string,
+  fetchFn: FetchLike = fetch,
+): Promise<{ ok: true; models: number } | { ok: false; error: string }> {
+  try {
+    const res = await httpRequest(
+      fetchFn,
+      `${cfg.baseUrl}/models?pageSize=100`,
+      { method: 'GET', headers: { 'x-goog-api-key': apiKey } },
+      { timeoutMs: 30_000, maxRetries: 1, idempotent: true, providerName: 'Gemini API' },
+    );
+    const json = (await res.json()) as { models?: unknown[] };
+    return { ok: true, models: json.models?.length ?? 0 };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : String(e) };
   }
 }

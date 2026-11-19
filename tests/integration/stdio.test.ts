@@ -8,7 +8,7 @@ import { cleanup, tempDir } from '../helpers.js';
 
 const entry = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../dist/mcp-entry.js');
 
-/** Spawns the built server exactly as an MCP client (e.g. Claude Code) would. */
+/** Spawns the built server exactly as an MCP client would. */
 describe.skipIf(!existsSync(entry))('stdio server (requires `npm run build`)', () => {
   it('starts, lists tools and answers get_status without writing logs to stdout', async () => {
     const dir = tempDir();
@@ -16,7 +16,14 @@ describe.skipIf(!existsSync(entry))('stdio server (requires `npm run build`)', (
       command: process.execPath,
       args: [entry],
       cwd: dir,
-      env: { PIXELBRIDGE_PROJECT_ROOT: dir, PIXELBRIDGE_MOCK: '1', PATH: process.env.PATH ?? '' },
+      env: {
+        PIXELBRIDGE_PROJECT_ROOT: dir,
+        PIXELBRIDGE_MOCK: '1',
+        // Isolated, empty credential store so the test never reads a real key.
+        PIXELBRIDGE_CREDENTIALS_DIR: path.join(dir, 'no-credentials'),
+        PATH: process.env.PATH ?? '',
+        SystemRoot: process.env.SystemRoot ?? '',
+      },
       stderr: 'pipe',
     });
     const client = new Client({ name: 'stdio-test', version: '0.0.0' });

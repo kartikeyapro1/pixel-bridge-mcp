@@ -46,6 +46,7 @@ export function makeBridge(
     logger: silentLogger,
     imageProviders: opts.imageProviders ?? [images],
     jobProviders: opts.jobProviders ?? [jobs],
+    secretStore: null,
   });
   return {
     pb,

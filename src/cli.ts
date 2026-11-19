@@ -6,6 +6,10 @@ import { CONFIG_FILE, resolveProjectRoot, STARTER_CONFIG } from './core/config.j
 import { isPixelBridgeError, PixelBridgeError } from './core/errors.js';
 import { redactValue } from './core/redact.js';
 import { runMcpServer } from './mcp/run.js';
+import { checkKeyShape, defaultSecretStore, resolveSecret, type SecretName } from './core/credentials.js';
+import { parseConfig } from './core/config.js';
+import { testGeminiKey } from './providers/gemini.js';
+import { createInterface } from 'node:readline';
 import { assetSummary, PixelBridge, VERSION } from './services/pixelbridge.js';
 import type { TurnaroundView } from './services/prompts.js';
 import type { ExportFormat, RenderView } from './blender/spec.js';
@@ -15,6 +19,8 @@ const HELP = `pixelbridge ${VERSION} — local asset pipeline for AI coding agen
 Usage: pixelbridge <command> [options]      (global: --project <dir>, --json)
 
 Setup
+  key set gemini|openai        Store an API key in the OS credential store (prompted, hidden)
+  key status | key test gemini | key delete gemini|openai
   init                         Write ${CONFIG_FILE} and create the assets directory
   status                       Providers, Blender, budget and missing setup
   serve                        Run the MCP server over stdio (same as pixelbridge-mcp)
@@ -79,6 +85,9 @@ async function main(argv: string[]): Promise<number> {
   if (cmd === 'serve') {
     await runMcpServer({ projectRoot });
     return -1; // keep running
+  }
+  if (cmd === 'key') {
+    return keyCommand(rest, json);
   }
   if (cmd === 'init') {
     const file = path.join(projectRoot, CONFIG_FILE);
@@ -301,3 +310,102 @@ main(process.argv.slice(2)).then(
     }
   },
 );
+
+// ---- key management -----------------------------------------------------------
+
+/** Read a secret without echoing it (TTY), or from piped stdin. */
+async function readSecret(prompt: string): Promise<string> {
+  if (!process.stdin.isTTY) {
+    const chunks: Buffer[] = [];
+    for await (const c of process.stdin) chunks.push(c as Buffer);
+    return Buffer.concat(chunks).toString('utf8').trim();
+  }
+  return new Promise((resolve) => {
+    const rl = createInterface({ input: process.stdin, output: process.stdout, terminal: true });
+    const rlAny = rl as unknown as { _writeToOutput: (s: string) => void; output: NodeJS.WriteStream };
+    let muted = false;
+    rlAny._writeToOutput = (str: string) => {
+      if (!muted) rlAny.output.write(str);
+    };
+    rl.question(prompt, (answer) => {
+      rl.close();
+      process.stdout.write('\n');
+      resolve(answer.trim());
+    });
+    muted = true;
+  });
+}
+
+async function keyCommand(args: string[], json: boolean): Promise<number> {
+  const KEY_NAMES: Record<string, SecretName> = { gemini: 'GEMINI_API_KEY', openai: 'OPENAI_API_KEY' };
+  const [action, providerArg] = args;
+  const store = defaultSecretStore();
+  const provider = providerArg ?? 'gemini';
+  const name = KEY_NAMES[provider];
+  if (action !== 'status' && !name) {
+    throw new PixelBridgeError('INVALID_INPUT', `Unknown provider "${provider}". Use gemini or openai.`);
+  }
+  if (!store && action !== 'status') {
+    throw new PixelBridgeError('CONFIG_INVALID', 'No OS credential store is available on this system.', {
+      hint: 'Set the key as an environment variable for the MCP server instead (e.g. GEMINI_API_KEY).',
+    });
+  }
+  switch (action) {
+    case 'set': {
+      const value = await readSecret(`Paste your ${provider} API key (input hidden): `);
+      checkKeyShape(value);
+      store!.set(name!, value);
+      const result: Record<string, unknown> = {
+        stored: name,
+        store: store!.name,
+        location: store!.location(),
+      };
+      if (provider === 'gemini') {
+        const t = await testGeminiKey(parseConfig({}).providers.gemini, value);
+        result.keyCheck = t.ok ? `valid (${t.models} models visible)` : `failed: ${t.error}`;
+      }
+      if (process.env[name!]) {
+        result.note = `${name} is also set as an environment variable, which takes precedence. Remove it to use the stored key.`;
+      }
+      out(result, json);
+      return 0;
+    }
+    case 'status': {
+      const status: Record<string, unknown> = {
+        store: store ? `${store.name} (${store.location()})` : 'none',
+      };
+      for (const [p, n] of Object.entries(KEY_NAMES)) {
+        const aliases = p === 'gemini' ? ['GEMINI_API_KEY', 'GOOGLE_API_KEY'] : [n];
+        status[p] = resolveSecret(aliases, process.env, store, n).source;
+      }
+      out(status, json);
+      return 0;
+    }
+    case 'test': {
+      if (provider !== 'gemini')
+        throw new PixelBridgeError('INVALID_INPUT', 'Only the gemini key can be tested.');
+      const { value, source } = resolveSecret(
+        ['GEMINI_API_KEY', 'GOOGLE_API_KEY'],
+        process.env,
+        store,
+        name!,
+      );
+      if (!value)
+        throw new PixelBridgeError(
+          'PROVIDER_NOT_CONFIGURED',
+          'No Gemini key found. Run: pixelbridge key set gemini',
+        );
+      const t = await testGeminiKey(parseConfig({}).providers.gemini, value);
+      out({ source, ...(t.ok ? { valid: true, models: t.models } : { valid: false, error: t.error }) }, json);
+      return t.ok ? 0 : 1;
+    }
+    case 'delete':
+      out({ deleted: store!.delete(name!), name }, json);
+      return 0;
+    default:
+      throw new PixelBridgeError(
+        'INVALID_INPUT',
+        'Usage: pixelbridge key set|status|test|delete [gemini|openai]',
+      );
+  }
+}

@@ -6,6 +6,12 @@ import { PixelBridgeError } from '../core/errors.js';
 import type { FetchLike } from '../core/http.js';
 import { createLogger, type Logger } from '../core/logger.js';
 import { ProjectPaths, slugify } from '../core/paths.js';
+import {
+  defaultSecretStore,
+  resolveSecret,
+  type SecretSource,
+  type SecretStore,
+} from '../core/credentials.js';
 import { registerSecret } from '../core/redact.js';
 import { AssetRegistry } from '../core/registry.js';
 import { GeminiImageProvider, GeminiVideoProvider } from '../providers/gemini.js';
@@ -23,6 +29,11 @@ export interface AppContextOptions {
   logger?: Logger;
   imageProviders?: ImageProvider[];
   jobProviders?: JobProvider[];
+  /**
+   * OS credential store for API keys. Defaults to the platform store, except when
+   * `env` is passed explicitly (tests), where it defaults to none.
+   */
+  secretStore?: SecretStore | null;
 }
 
 /**
@@ -42,6 +53,8 @@ export class AppContext {
   readonly jobProviders = new Map<string, JobProvider>();
   readonly blender: BlenderService;
   readonly projectId: string;
+  /** Where each provider key came from (never the value). */
+  readonly credentialSources: Record<'gemini' | 'openai', SecretSource>;
 
   constructor(opts: AppContextOptions = {}) {
     const loaded = opts.config
@@ -69,8 +82,17 @@ export class AppContext {
     const fetchFn = opts.fetch ?? fetch;
     const p = this.config.providers;
 
-    // One key covers images and video: GEMINI_API_KEY (GOOGLE_API_KEY accepted as an alias).
-    const geminiKey = env.GEMINI_API_KEY || env.GOOGLE_API_KEY;
+    // Keys: environment first, then the OS credential store (`pixelbridge key set`).
+    const store = opts.secretStore !== undefined ? opts.secretStore : opts.env ? null : defaultSecretStore();
+    const gemini = p.gemini.enabled
+      ? resolveSecret(['GEMINI_API_KEY', 'GOOGLE_API_KEY'], env, store, 'GEMINI_API_KEY')
+      : { value: undefined, source: 'missing' as const };
+    const openai = p.openai.enabled
+      ? resolveSecret(['OPENAI_API_KEY'], env, store, 'OPENAI_API_KEY')
+      : { value: undefined, source: 'missing' as const };
+    this.credentialSources = { gemini: gemini.source, openai: openai.source };
+    // One key covers images and video.
+    const geminiKey = gemini.value;
     registerSecret(geminiKey);
     const geminiOn = p.gemini.enabled && !!geminiKey;
 
@@ -78,7 +100,7 @@ export class AppContext {
       for (const ip of opts.imageProviders) this.imageProviders.set(ip.id, ip);
     } else {
       if (geminiOn) this.imageProviders.set('gemini', new GeminiImageProvider(p.gemini, geminiKey!, fetchFn));
-      const openaiKey = env.OPENAI_API_KEY;
+      const openaiKey = openai.value;
       registerSecret(openaiKey);
       if (p.openai.enabled && openaiKey) {
         this.imageProviders.set(
@@ -157,9 +179,9 @@ export class AppContext {
 function notConfigured(name: string): PixelBridgeError {
   const hints: Record<string, string> = {
     openai:
-      'Set OPENAI_API_KEY in the environment of the MCP server (or enable the mock provider for offline testing).',
+      'Store an OpenAI key with "pixelbridge key set openai", or set OPENAI_API_KEY for the MCP server.',
     gemini:
-      'Set GEMINI_API_KEY (from Google AI Studio) in the environment of the MCP server. One key covers images and video. For offline testing set PIXELBRIDGE_MOCK=1.',
+      'Store a Gemini API key (from Google AI Studio) with "pixelbridge key set gemini", or set GEMINI_API_KEY for the MCP server. One key covers images and video. For offline testing set PIXELBRIDGE_MOCK=1.',
     mock: 'Enable providers.mock in pixelbridge.config.json or set PIXELBRIDGE_MOCK=1.',
   };
   return new PixelBridgeError('PROVIDER_NOT_CONFIGURED', `Provider "${name}" is not configured.`, {

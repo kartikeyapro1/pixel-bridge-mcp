@@ -16,7 +16,7 @@ import { Client } from '@modelcontextprotocol/client';
 import { InMemoryTransport } from '@modelcontextprotocol/server';
 import { cleanup, fakeFetch, jsonResponse, tempDir } from '../helpers.js';
 
-const KEY = 'AIzaSyTESTKEY0123456789abcdefghijklmnop';
+const KEY = 'test-gemini-key-0123456789abcdefghijklmnop';
 const API = 'https://generativelanguage.googleapis.com/v1beta';
 const png = encodePng(4, 4, () => [0, 128, 255, 255]);
 const img = { data: png, filename: 'ref.png', mime: 'image/png' };

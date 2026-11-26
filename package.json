@@ -58,13 +58,13 @@
   },
   "devDependencies": {
     "@modelcontextprotocol/client": "2.4.0",
-    "@types/node": "^24.19.2",
+    "@types/node": "^26.6.6",
     "@types/pngjs": "^6.0.5",
-    "eslint": "^9.39.5",
+    "eslint": "^10.15.0",
     "prettier": "^3.10.1",
-    "typescript": "^5.9.3",
+    "typescript": "^7.0.2",
     "typescript-eslint": "^8.73.0",
-    "vitest": "^4.1.12"
+    "vitest": "^5.1.1"
   },
   "repository": {
     "type": "git",
